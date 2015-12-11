@@ -1,0 +1,36 @@
+diff --git a/cores/esp8266/Updater.cpp b/cores/esp8266/Updater.cpp
+index 28830fb..dc6b546 100644
+--- a/cores/esp8266/Updater.cpp
++++ b/cores/esp8266/Updater.cpp
+@@ -62,6 +62,8 @@ bool UpdaterClass::begin(size_t size, int command) {
+ 
+   wifi_set_sleep_type(NONE_SLEEP_T);
+ 
++  Serial.printf("target size: %u\n\r", size);
++
+   uint32_t updateStartAddress = 0;
+   if (command == U_FLASH) {
+     //size of current sketch rounded to a sector
+@@ -155,12 +157,10 @@ bool UpdaterClass::end(bool evenIfRemaining){
+     ebcmd.args[2] = _size;
+     eboot_command_write(&ebcmd);
+ 
+-#ifdef DEBUG_UPDATER
+-    DEBUG_UPDATER.printf("Staged: address:0x%08X, size:0x%08X\n", _startAddress, _size);
++    Serial.printf("Staged: address: 0x%08x, size: %u\n\r", _startAddress, _size);
+   }
+   else if (_command == U_SPIFFS) {
+-    DEBUG_UPDATER.printf("SPIFFS: address:0x%08X, size:0x%08X\n", _startAddress, _size);
+-#endif
++    Serial.printf("SPIFFS: address: 0x%08x, size: %u\n\r", _startAddress, _size);
+   }
+ 
+   _reset();
+@@ -169,6 +169,7 @@ bool UpdaterClass::end(bool evenIfRemaining){
+ 
+ bool UpdaterClass::_writeBuffer(){
+   yield();
++    Serial.printf("write 0x%08x\n\r", _currentAddress);
+   bool result = ESP.flashEraseSector(_currentAddress/FLASH_SECTOR_SIZE) &&
+                 ESP.flashWrite(_currentAddress, (uint32_t*) _buffer, _bufferLen);
+ 
