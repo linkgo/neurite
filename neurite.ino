@@ -88,6 +88,7 @@ ESP8266WiFiMulti WiFiMulti;
 #endif
 Ticker ticker_worker;
 Ticker ticker_led;
+Ticker ticker_cmd;
 WiFiClient wifi_cli;
 PubSubClient mqtt_cli(wifi_cli);
 
@@ -198,8 +199,8 @@ static void mqtt_callback(char *topic, byte *payload, unsigned int length)
 	log_dbg("topic (%d): %s\n\r", strlen(topic), topic);
 	log_dbg("data (%d): ", length);
 	for (int i = 0; i < length; i++)
-		USE_SERIAL.print((char)payload[i]);
-	USE_SERIAL.println();
+		LOG_SERIAL.print((char)payload[i]);
+	LOG_SERIAL.println();
 }
 
 static inline bool mqtt_check_status(void)
@@ -224,7 +225,7 @@ static void cmd_completed_cb(struct cmd_parser_s *cp)
 	dbg_assert(cp);
 	if (cp->data_len > 0) {
 		log_dbg("msg launch(len %d): %s\n\r", cp->data_len, cp->buf);
-//		MQTT_Publish(&g_nd.mc, g_nd.nmcfg.topic_to, cp->buf, cp->data_len, 0, 0);
+		mqtt_cli.publish(g_nd.nmcfg.topic_to, cp->buf);
 	}
 	__bzero(cp->buf, cp->buf_size);
 	cp->data_len = 0;
@@ -242,7 +243,10 @@ int cmd_parser_init(struct cmd_parser_s *cp, char *buf, uint16_t buf_size)
 
 void neurite_child_worker(void)
 {
-	log_dbg("my time is: %d ms\n\r", millis());
+	struct neurite_data_s *nd = &g_nd;
+	char tmp[64];
+	sprintf(tmp, "%s time: %d ms", nd->nmcfg.uid, millis());
+	mqtt_cli.publish(nd->nmcfg.topic_to, tmp);
 }
 
 static inline void start_child_worker(void)
@@ -270,7 +274,7 @@ inline void neurite_worker(void)
 
 			log_dbg("WiFi connected\n\r");
 			log_dbg("IP address: ");
-			USE_SERIAL.println(WiFi.localIP());
+			LOG_SERIAL.println(WiFi.localIP());
 
 			if (digitalRead(NEURITE_BUTTON) == LOW) {
 				ticker_led.detach();
@@ -303,8 +307,34 @@ inline void neurite_worker(void)
 	}
 }
 
+static void cmd_parse_byte(struct cmd_parser_s *cp, char value)
+{
+	dbg_assert(cp);
+	switch (value) {
+		case '\r':
+			if (cp->callback != NULL)
+				cp->callback(cp);
+			break;
+		default:
+			if (cp->data_len < cp->buf_size)
+				cp->buf[cp->data_len++] = value;
+			break;
+	}
+}
+
+static void ticker_cmd_task(struct neurite_data_s *nd)
+{
+	char c;
+	if (CMD_SERIAL.available() <= 0)
+		return;
+	c = CMD_SERIAL.read();
+	LOG_SERIAL.printf("%c", c);
+	cmd_parse_byte(nd->cp, c);
+}
+
 void neurite_cmd_init(struct neurite_data_s *nd)
 {
+	ticker_cmd.attach_ms(1, ticker_cmd_task, nd);
 }
 
 void neurite_init(void)
@@ -350,10 +380,10 @@ void neurite_init(void)
 
 void setup()
 {
-	USE_SERIAL.begin(115200);
-	USE_SERIAL.setDebugOutput(false);
-	USE_SERIAL.printf("\n\r");
-	USE_SERIAL.flush();
+	LOG_SERIAL.begin(115200);
+	LOG_SERIAL.setDebugOutput(false);
+	LOG_SERIAL.printf("\n\r");
+	LOG_SERIAL.flush();
 	pinMode(NEURITE_LED, OUTPUT);
 	digitalWrite(NEURITE_LED, HIGH);
 	pinMode(NEURITE_BUTTON, INPUT);
