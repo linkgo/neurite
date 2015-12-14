@@ -103,5 +103,12 @@
 /*
  * Other Utils
  */
+#define OTA_URL_DEFAULT		"http://192.168.100.154/firmware/esp.bin";
+#define SSID1			"ssid1"
+#define PSK1			"psk1"
+#define SSID2			"ssid2"
+#define PSK2			"psk2"
+#define MQTT_SERVER		"accrete.org"
+
 
 #endif /* __NEURITE_UTILS_H__ */
