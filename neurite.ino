@@ -86,6 +86,7 @@ Ticker ticker_worker;
 Ticker ticker_led;
 Ticker ticker_cmd;
 Ticker ticker_mon;
+Ticker ticker_but;
 WiFiClient wifi_cli;
 PubSubClient mqtt_cli(wifi_cli);
 
@@ -224,6 +225,31 @@ static void ticker_worker_task(void)
 #endif
 }
 
+static void button_handler(struct neurite_data_s *nd, int dts)
+{
+	log_dbg("button pressed for %d ms\n\r", dts);
+}
+
+static void ticker_button_task(struct neurite_data_s *nd)
+{
+	static int ts = 0;
+	static int r_curr = HIGH;
+	static int r_prev = HIGH;
+	int dts;
+	r_curr = digitalRead(NEURITE_BUTTON);
+	if ((r_curr == LOW) && (r_prev == HIGH)) {
+		ts = millis();
+		r_prev = r_curr;
+	} else {
+		if ((r_curr == HIGH) && (r_prev == LOW)) {
+			dts = millis() - ts;
+			r_prev = r_curr;
+			if (dts > 89)
+				button_handler(nd, dts);
+		}
+	}
+}
+
 static inline void stop_ticker_led(struct neurite_data_s *nd)
 {
 	ticker_led.detach();
@@ -260,6 +286,17 @@ static inline void start_ticker_worker(struct neurite_data_s *nd)
 {
 	stop_ticker_worker(nd);
 	ticker_worker.attach(1, ticker_worker_task);
+}
+
+static inline void stop_ticker_but(struct neurite_data_s *nd)
+{
+	ticker_but.detach();
+}
+
+static inline void start_ticker_but(struct neurite_data_s *nd)
+{
+	stop_ticker_but(nd);
+	ticker_but.attach_ms(50, ticker_button_task, nd);
 }
 
 static void cmd_completed_cb(struct cmd_parser_s *cp)
@@ -352,8 +389,8 @@ void neurite_init(void)
 	log_dbg("mqtt user: %s\n\r", nd->cfg->mqtt_user);
 	log_dbg("mqtt pass: %s\n\r", nd->cfg->mqtt_pass);
 #endif
+	start_ticker_but(nd);
 	neurite_cmd_init(nd);
-
 	log_dbg("out\n\r");
 }
 
