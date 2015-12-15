@@ -44,8 +44,9 @@
 #define __dec		(millis()/1000)
 #define __frac		(millis()%1000)
 
-#define USE_SERIAL	Serial
-#define APP_PRINTF	USE_SERIAL.printf
+#define CMD_SERIAL	Serial
+#define LOG_SERIAL	Serial
+#define APP_PRINTF	LOG_SERIAL.printf
 
 #define log_dbg(msg, args...) \
 	do { \
@@ -95,15 +96,22 @@
 		} \
 	} while (0)
 #else
-#define _OS_ASSERT(exp) (void)((0))
+#define _OS_ASSERT(exp)		(void)((0))
 #endif
 
-#define dbg_assert(exp)			_OS_ASSERT(exp)
+#define dbg_assert(exp)		_OS_ASSERT(exp)
 
 /*
  * Other Utils
  */
-#define OTA_URL_DEFAULT		"http://192.168.100.154/firmware/esp.bin";
+
+#define __bzero(m,s)		memset(m,0,s)
+
+/*
+ * Configs
+ */
+
+#define OTA_URL_DEFAULT		"http://192.168.31.248:8080/firmware/esp.bin"
 #define SSID1			"ssid1"
 #define PSK1			"psk1"
 #define SSID2			"ssid2"
