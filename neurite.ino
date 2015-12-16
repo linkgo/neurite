@@ -32,8 +32,11 @@
 #endif
 #include <ESP8266HTTPClient.h>
 #include <ESP8266httpUpdate.h>
+#include <ESP8266WebServer.h>
 #include <PubSubClient.h>
 #include <Ticker.h>
+#include <ArduinoJson.h>
+#include "FS.h"
 
 extern "C" {
 #include "osapi.h"
@@ -41,9 +44,11 @@ extern "C" {
 #include "user_interface.h"
 }
 
-#define NEURITE_CMD_BUF_SIZE		256
-#define NEURITE_UID_LEN			32
-#define NEURITE_TOPIC_LEN		64
+#define NEURITE_CMD_BUF_SIZE	256
+#define NEURITE_UID_LEN		32
+#define NEURITE_TOPIC_LEN	64
+#define NEURITE_SSID_LEN	32
+#define NEURITE_PSK_LEN		32
 
 #define NEURITE_LED	13
 #define NEURITE_BUTTON	0
@@ -61,23 +66,25 @@ struct cmd_parser_s {
 	cmd_parser_cb_fp callback;
 };
 
-struct neurite_mqtt_cfg_s {
+struct neurite_cfg_s {
 	char uid[NEURITE_UID_LEN];
 	char topic_to[NEURITE_TOPIC_LEN];
 	char topic_from[NEURITE_TOPIC_LEN];
+	char sta_ssid[NEURITE_SSID_LEN];
+	char sta_psk[NEURITE_PSK_LEN];
 };
 
 struct neurite_data_s {
 	bool wifi_connected;
 	bool mqtt_connected;
-	struct neurite_mqtt_cfg_s nmcfg;
+	struct neurite_cfg_s cfg;
 	struct cmd_parser_s *cp;
 };
 
-struct neurite_data_s g_nd;
-struct cmd_parser_s g_cp;
-
-char cmd_buf[NEURITE_CMD_BUF_SIZE];
+static struct neurite_data_s g_nd;
+static struct cmd_parser_s g_cp;
+static char cmd_buf[NEURITE_CMD_BUF_SIZE];
+static bool b_cfg_ready;
 
 #ifdef WIFI_CONFIG_MULTI
 ESP8266WiFiMulti WiFiMulti;
@@ -99,7 +106,6 @@ enum {
 	WORKER_ST_3,
 	WORKER_ST_4
 };
-
 static int worker_st = WORKER_ST_0;
 
 static inline void update_worker_state(int st)
@@ -130,6 +136,27 @@ static void ticker_led_blink(void)
 	static int val = 1000;
 	analogWrite(NEURITE_LED, val);
 	val = (val == 1000) ? 200 : 1000;
+}
+
+static int cfg_load_item(struct neurite_data_s *nd)
+{
+}
+
+static int cfg_save_item(struct neurite_data_s *nd)
+{
+}
+
+static int cfg_load(struct neurite_data_s *nd)
+{
+}
+
+static int cfg_save(struct neurite_data_s *nd)
+{
+}
+
+static bool cfg_check_empty(struct neurite_data_s *nd)
+{
+	return false;
 }
 
 static void wifi_connect(struct neurite_data_s *nd)
@@ -198,7 +225,7 @@ static void mqtt_config(struct neurite_data_s *nd)
 
 static void mqtt_connect(struct neurite_data_s *nd)
 {
-	mqtt_cli.connect(nd->nmcfg.uid);
+	mqtt_cli.connect(nd->cfg.uid);
 }
 
 static void ticker_monitor_task(struct neurite_data_s *nd)
@@ -220,8 +247,8 @@ static void ticker_worker_task(void)
 #if 0
 	struct neurite_data_s *nd = &g_nd;
 	char tmp[64];
-	sprintf(tmp, "%s time: %d ms", nd->nmcfg.uid, millis());
-	mqtt_cli.publish(nd->nmcfg.topic_to, tmp);
+	sprintf(tmp, "%s time: %d ms", nd->cfg.uid, millis());
+	mqtt_cli.publish(nd->cfg.topic_to, tmp);
 #endif
 }
 
@@ -305,7 +332,7 @@ static void cmd_completed_cb(struct cmd_parser_s *cp)
 	dbg_assert(cp);
 	if (cp->data_len > 0) {
 		if (nd->mqtt_connected)
-			mqtt_cli.publish(nd->nmcfg.topic_to, cp->buf);
+			mqtt_cli.publish(nd->cfg.topic_to, cp->buf);
 		log_dbg("msg %slaunched(len %d): %s\n\r",
 			nd->mqtt_connected?"":"not ", cp->data_len, cp->buf);
 	}
@@ -348,9 +375,58 @@ static void ticker_cmd_task(struct neurite_data_s *nd)
 	cmd_parse_byte(nd->cp, c);
 }
 
-void neurite_cmd_init(struct neurite_data_s *nd)
+static inline void stop_ticker_cmd(struct neurite_data_s *nd)
 {
+	ticker_cmd.detach();
+}
+
+static void start_ticker_cmd(struct neurite_data_s *nd)
+{
+	stop_ticker_cmd(nd);
 	ticker_cmd.attach_ms(1, ticker_cmd_task, nd);
+}
+
+static void fs_init(struct neurite_data_s *nd)
+{
+	if (!SPIFFS.begin()) {
+		log_err("failed to mount fs\n\r");
+		dbg_assert(0);
+	}
+	FSInfo info;
+	if (!SPIFFS.info(info)) {
+		log_err("failed to mount fs\n\r");
+		dbg_assert(0);
+	}
+	log_dbg("Total: %u\n\r"
+		"Used: %u\n\r"
+		"Block: %u\n\r"
+		"Page: %u\n\r"
+		"Max open files: %u\n\r"
+		"Max path len: %u\n\r",
+		info.totalBytes,
+		info.usedBytes,
+		info.blockSize,
+		info.pageSize,
+		info.maxOpenFiles,
+		info.maxPathLength
+	);
+}
+
+static void cfg_init(struct neurite_data_s *nd)
+{
+	__bzero(&nd->cfg, sizeof(struct neurite_cfg_s));
+	sprintf(nd->cfg.uid, "neurite-%08x", ESP.getChipId());
+#if 0
+	sprintf(nd->cfg.topic_to, "/neuro/%s/to", nd->cfg.uid);
+	sprintf(nd->cfg.topic_from, "/neuro/%s/to", nd->cfg.uid);
+#else
+	sprintf(nd->cfg.topic_to, "/neuro/chatroom", nd->cfg.uid);
+	sprintf(nd->cfg.topic_from, "/neuro/chatroom", nd->cfg.uid);
+#endif
+#if 0
+	sprintf(nd->cfg->sta_ssid, "%s", STA_SSID);
+	sprintf(nd->cfg->sta_pwd, "%s", STA_PASS);
+#endif
 }
 
 void neurite_init(void)
@@ -364,24 +440,20 @@ void neurite_init(void)
 	__bzero(cmd_buf, NEURITE_CMD_BUF_SIZE);
 	cmd_parser_init(nd->cp, cmd_buf, NEURITE_CMD_BUF_SIZE);
 
-	/* TODO these items need to be configured at runtime */
-	__bzero(&nd->nmcfg, sizeof(struct neurite_mqtt_cfg_s));
-	sprintf(nd->nmcfg.uid, "neurite-%08x", ESP.getChipId());
-#if 0
-	sprintf(nd->nmcfg.topic_to, "/neuro/%s/to", nd->nmcfg.uid);
-	sprintf(nd->nmcfg.topic_from, "/neuro/%s/to", nd->nmcfg.uid);
-#else
-	sprintf(nd->nmcfg.topic_to, "/neuro/chatroom", nd->nmcfg.uid);
-	sprintf(nd->nmcfg.topic_from, "/neuro/chatroom", nd->nmcfg.uid);
-#endif
-#if 0
-	sprintf(nd->cfg->sta_ssid, "%s", STA_SSID);
-	sprintf(nd->cfg->sta_pwd, "%s", STA_PASS);
-#endif
+	fs_init(nd);
+	cfg_init(nd);
+
+	if (cfg_check_empty(nd)) {
+		b_cfg_ready = false;
+	} else {
+		cfg_load(nd);
+		b_cfg_ready = true;
+	}
+
 	log_info("chip id: %08x\n\r", system_get_chip_id());
-	log_info("uid: %s\n\r", nd->nmcfg.uid);
-	log_info("topic_to: %s\n\r", nd->nmcfg.topic_to);
-	log_info("topic_from: %s\n\r", nd->nmcfg.topic_from);
+	log_info("uid: %s\n\r", nd->cfg.uid);
+	log_info("topic_to: %s\n\r", nd->cfg.topic_to);
+	log_info("topic_from: %s\n\r", nd->cfg.topic_from);
 #if 0
 	log_dbg("device id: %s\n\r", nd->cfg->device_id);
 	log_dbg("ssid: %s\n\r", nd->cfg->sta_ssid);
@@ -390,9 +462,156 @@ void neurite_init(void)
 	log_dbg("mqtt pass: %s\n\r", nd->cfg->mqtt_pass);
 #endif
 	start_ticker_but(nd);
-	neurite_cmd_init(nd);
+	start_ticker_cmd(nd);
 	log_dbg("out\n\r");
 }
+
+/* TODO server test */
+
+ESP8266WebServer *server;
+File fsUploadFile;
+
+void handleRoot() {
+	server->send(200, "text/plain", "hello from esp8266!");
+}
+
+void handleNotFound() {
+	String message = "File Not Found\n\n";
+	message += "URI: ";
+	message += server->uri();
+	message += "\nMethod: ";
+	message += (server->method() == HTTP_GET)?"GET":"POST";
+	message += "\nArguments: ";
+	message += server->args();
+	message += "\n";
+	for (uint8_t i=0; i<server->args(); i++){
+		message += " " + server->argName(i) + ": " + server->arg(i) + "\n";
+	}
+	server->send(404, "text/plain", message);
+}
+
+static String formatBytes(size_t bytes){
+  if (bytes < 1024) {
+    return String(bytes)+"B";
+  } else if(bytes < (1024 * 1024)) {
+    return String(bytes/1024.0)+"KB";
+  } else if(bytes < (1024 * 1024 * 1024)) {
+    return String(bytes/1024.0/1024.0)+"MB";
+  } else {
+    return String(bytes/1024.0/1024.0/1024.0)+"GB";
+  }
+}
+
+String getContentType(String filename){
+  if(server->hasArg("download")) return "application/octet-stream";
+  else if(filename.endsWith(".htm")) return "text/html";
+  else if(filename.endsWith(".html")) return "text/html";
+  else if(filename.endsWith(".css")) return "text/css";
+  else if(filename.endsWith(".js")) return "application/javascript";
+  else if(filename.endsWith(".png")) return "image/png";
+  else if(filename.endsWith(".gif")) return "image/gif";
+  else if(filename.endsWith(".jpg")) return "image/jpeg";
+  else if(filename.endsWith(".ico")) return "image/x-icon";
+  else if(filename.endsWith(".xml")) return "text/xml";
+  else if(filename.endsWith(".pdf")) return "application/x-pdf";
+  else if(filename.endsWith(".zip")) return "application/x-zip";
+  else if(filename.endsWith(".gz")) return "application/x-gzip";
+  return "text/plain";
+}
+
+bool handleFileRead(String path){
+  LOG_SERIAL.println("handleFileRead: " + path);
+  if(path.endsWith("/")) path += "index.htm";
+  String contentType = getContentType(path);
+  String pathWithGz = path + ".gz";
+  if(SPIFFS.exists(pathWithGz) || SPIFFS.exists(path)){
+    if(SPIFFS.exists(pathWithGz))
+      path += ".gz";
+    File file = SPIFFS.open(path, "r");
+    size_t sent = server->streamFile(file, contentType);
+    file.close();
+    return true;
+  }
+  return false;
+}
+
+void handleFileUpload(){
+  if(server->uri() != "/edit") return;
+  HTTPUpload& upload = server->upload();
+  if(upload.status == UPLOAD_FILE_START){
+    String filename = upload.filename;
+    if(!filename.startsWith("/")) filename = "/"+filename;
+    LOG_SERIAL.print("handleFileUpload Name: "); LOG_SERIAL.println(filename);
+    fsUploadFile = SPIFFS.open(filename, "w");
+    filename = String();
+  } else if(upload.status == UPLOAD_FILE_WRITE){
+    //LOG_SERIAL.print("handleFileUpload Data: "); LOG_SERIAL.println(upload.currentSize);
+    if(fsUploadFile)
+      fsUploadFile.write(upload.buf, upload.currentSize);
+  } else if(upload.status == UPLOAD_FILE_END){
+    if(fsUploadFile)
+      fsUploadFile.close();
+    LOG_SERIAL.print("handleFileUpload Size: "); LOG_SERIAL.println(upload.totalSize);
+  }
+}
+
+void handleFileDelete(){
+  if(server->args() == 0) return server->send(500, "text/plain", "BAD ARGS");
+  String path = server->arg(0);
+  LOG_SERIAL.println("handleFileDelete: " + path);
+  if(path == "/")
+    return server->send(500, "text/plain", "BAD PATH");
+  if(!SPIFFS.exists(path))
+    return server->send(404, "text/plain", "FileNotFound");
+  SPIFFS.remove(path);
+  server->send(200, "text/plain", "");
+  path = String();
+}
+
+void handleFileCreate(){
+  if(server->args() == 0)
+    return server->send(500, "text/plain", "BAD ARGS");
+  String path = server->arg(0);
+  LOG_SERIAL.println("handleFileCreate: " + path);
+  if(path == "/")
+    return server->send(500, "text/plain", "BAD PATH");
+  if(SPIFFS.exists(path))
+    return server->send(500, "text/plain", "FILE EXISTS");
+  File file = SPIFFS.open(path, "w");
+  if(file)
+    file.close();
+  else
+    return server->send(500, "text/plain", "CREATE FAILED");
+  server->send(200, "text/plain", "");
+  path = String();
+}
+
+void handleFileList() {
+  if(!server->hasArg("dir")) {server->send(500, "text/plain", "BAD ARGS"); return;}
+  
+  String path = server->arg("dir");
+  LOG_SERIAL.println("handleFileList: " + path);
+  Dir dir = SPIFFS.openDir(path);
+  path = String();
+
+  String output = "[";
+  while(dir.next()){
+    File entry = dir.openFile("r");
+    if (output != "[") output += ',';
+    bool isDir = false;
+    output += "{\"type\":\"";
+    output += (isDir)?"dir":"file";
+    output += "\",\"name\":\"";
+    output += String(entry.name()).substring(1);
+    output += "\"}";
+    entry.close();
+  }
+  
+  output += "]";
+  server->send(200, "text/json", output);
+}
+
+/* server test end */
 
 inline void neurite_worker(void)
 {
@@ -415,11 +634,15 @@ inline void neurite_worker(void)
 		case WORKER_ST_2:
 			if (digitalRead(NEURITE_BUTTON) == LOW) {
 				stop_ticker_led(nd);
+				stop_ticker_but(nd);
 				ota_over_http(OTA_URL_DEFAULT);
+				start_ticker_but(nd);
+				start_ticker_led_blink(nd);
 			}
 			mqtt_config(nd);
 			update_worker_state(WORKER_ST_3);
 			break;
+#if 0
 		case WORKER_ST_3:
 			if (!mqtt_check_status(nd)) {
 				mqtt_connect(nd);
@@ -427,11 +650,11 @@ inline void neurite_worker(void)
 			}
 
 			nd->mqtt_connected = true;
-			mqtt_cli.subscribe(nd->nmcfg.topic_from);
+			mqtt_cli.subscribe(nd->cfg.topic_from);
 			char payload_buf[32];
 			dbg_assert(payload_buf);
-			sprintf(payload_buf, "checkin: %s", nd->nmcfg.uid);
-			mqtt_cli.publish(nd->nmcfg.topic_to, (const char *)payload_buf);
+			sprintf(payload_buf, "checkin: %s", nd->cfg.uid);
+			mqtt_cli.publish(nd->cfg.topic_to, (const char *)payload_buf);
 
 			start_ticker_led_breath(nd);
 			start_ticker_worker(nd);
@@ -442,8 +665,93 @@ inline void neurite_worker(void)
 		case WORKER_ST_4:
 			mqtt_cli.loop();
 			break;
+#else
+		case WORKER_ST_3:
+			/*
+			Dir dir = SPIFFS.openDir("/");
+			while (dir.next()) {
+				String fileName = dir.fileName();
+				size_t fileSize = dir.fileSize();
+				log_dbg("file: %s, size: %s\n\r",
+					fileName.c_str(), formatBytes(fileSize).c_str());
+			}
+			*/
+			server = new ESP8266WebServer(80);
+			server->on("/list", HTTP_GET, handleFileList);
+			server->on("/edit", HTTP_GET, [](){
+					if(!handleFileRead("/edit.htm")) server->send(404, "text/plain", "FileNotFound");
+					});
+			server->on("/edit", HTTP_PUT, handleFileCreate);
+			server->on("/edit", HTTP_DELETE, handleFileDelete);
+			server->on("/edit", HTTP_POST, [](){ server->send(200, "text/plain", ""); }, handleFileUpload);
+
+			server->onNotFound([](){
+				if (!handleFileRead(server->uri())) {
+					String message = "File Not Found\n\n";
+					message += "URI: ";
+					message += server->uri();
+					message += "\nMethod: ";
+					message += (server->method() == HTTP_GET)?"GET":"POST";
+					message += "\nArguments: ";
+					message += server->args();
+					message += "\n";
+					for (uint8_t i=0; i<server->args(); i++)
+						message += " " + server->argName(i) + ": " + server->arg(i) + "\n";
+					server->send(404, "text/plain", message);
+				}
+			});
+
+			server->on("/all", HTTP_GET, [](){
+					String json = "{";
+					json += "\"heap\":"+String(ESP.getFreeHeap());
+					json += ", \"analog\":"+String(analogRead(A0));
+					json += ", \"gpio\":"+String((uint32_t)(((GPI | GPO) & 0xFFFF) | ((GP16I & 0x01) << 16)));
+					json += "}";
+					server->send(200, "text/json", json);
+					json = String();
+					});
+
+			server->on("/", handleRoot);
+			server->begin();
+			log_dbg("HTTP server started\n\r");
+			update_worker_state(WORKER_ST_4);
+			break;
+		case WORKER_ST_4:
+			server->handleClient();
+			break;
+#endif
 		default:
 			log_err("unknown worker state: %d\n\r", worker_st);
+			break;
+	}
+}
+
+enum {
+	CFG_ST_0 = 0,
+	CFG_ST_1,
+	CFG_ST_2
+};
+static int cfg_st = CFG_ST_0;
+
+static inline void update_cfg_state(int st)
+{
+	log_dbg("-> CFG_ST_%d\n\r", st);
+	cfg_st = st;
+}
+
+inline void neurite_cfg_worker(void)
+{
+	struct neurite_data_s *nd = &g_nd;
+	switch (cfg_st) {
+		case CFG_ST_0:
+			update_cfg_state(CFG_ST_1);
+			break;
+		case CFG_ST_1:
+			break;
+		case CFG_ST_2:
+			break;
+		default:
+			log_err("unknown cfg state: %d\n\r", worker_st);
 			break;
 	}
 }
@@ -462,5 +770,8 @@ void setup()
 
 void loop()
 {
-	neurite_worker();
+	if (b_cfg_ready)
+		neurite_worker();
+	else
+		neurite_cfg_worker();
 }

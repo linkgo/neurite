@@ -1,0 +1,4 @@
+curl -X DELETE 'http://192.168.31.234/edit?dir=/index.html.gz'
+curl -X GET 'http://192.168.31.234/list?dir=/'
+curl -F "file=@index.html.gz" http://192.168.31.234/edit
+for file in `ls -A1`; do curl -F "file=@$PWD/$file" http://192.168.31.234/edit; done
