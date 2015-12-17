@@ -33,6 +33,7 @@
 #include <ESP8266HTTPClient.h>
 #include <ESP8266httpUpdate.h>
 #include <ESP8266WebServer.h>
+#include <ESP8266mDNS.h>
 #include <PubSubClient.h>
 #include <Ticker.h>
 #include <ArduinoJson.h>
@@ -44,6 +45,8 @@ extern "C" {
 #include "user_interface.h"
 }
 
+#define NEURITE_CFG_PATH	"/config.json"
+#define NEURITE_CFG_SIZE	1024
 #define NEURITE_CMD_BUF_SIZE	256
 #define NEURITE_UID_LEN		32
 #define NEURITE_TOPIC_LEN	64
@@ -70,8 +73,8 @@ struct neurite_cfg_s {
 	char uid[NEURITE_UID_LEN];
 	char topic_to[NEURITE_TOPIC_LEN];
 	char topic_from[NEURITE_TOPIC_LEN];
-	char sta_ssid[NEURITE_SSID_LEN];
-	char sta_psk[NEURITE_PSK_LEN];
+	char ssid[NEURITE_SSID_LEN];
+	char psk[NEURITE_PSK_LEN];
 };
 
 struct neurite_data_s {
@@ -96,6 +99,8 @@ Ticker ticker_mon;
 Ticker ticker_but;
 WiFiClient wifi_cli;
 PubSubClient mqtt_cli(wifi_cli);
+StaticJsonBuffer<200> json_buf;
+static char cfg_buf[NEURITE_CFG_SIZE];
 
 static char uid[32];
 
@@ -138,36 +143,157 @@ static void ticker_led_blink(void)
 	val = (val == 1000) ? 200 : 1000;
 }
 
-static int cfg_load_item(struct neurite_data_s *nd)
+static void cfg_run_dump(struct neurite_data_s *nd)
 {
+	log_dbg("ssid: %s\n\r", nd->cfg.ssid);
+	log_dbg("psk: %s\n\r", nd->cfg.psk);
+	log_dbg("uid: %s\n\r", nd->cfg.uid);
+	log_dbg("topic_to: %s\n\r", nd->cfg.topic_to);
+	log_dbg("topic_from: %s\n\r", nd->cfg.topic_from);
 }
 
-static int cfg_save_item(struct neurite_data_s *nd)
+static void cfg_file_dump(struct neurite_data_s *nd)
 {
+	File configFile = SPIFFS.open(NEURITE_CFG_PATH, "r");
+	if (!configFile) {
+		log_err("open failed\n\r");
+		return;
+	}
+	log_dbg("%s:\n\r", NEURITE_CFG_PATH);
+	while (configFile.available())
+		LOG_SERIAL.write(configFile.read());
+	LOG_SERIAL.println();
+	configFile.close();
 }
 
-static int cfg_load(struct neurite_data_s *nd)
+static bool cfg_load(struct neurite_data_s *nd)
 {
+	log_dbg("in\n\r");
+	File configFile = SPIFFS.open(NEURITE_CFG_PATH, "r");
+	if (!configFile) {
+		log_err("open failed\n\r");
+		return false;
+	}
+	size_t size = configFile.size();
+	if (size > NEURITE_CFG_SIZE) {
+		log_err("file too large\n\r");
+		configFile.close();
+		return false;
+	}
+	size = configFile.readBytes(cfg_buf, size);
+	log_info("config file size: %d\n\r", size);
+	configFile.close();
+	cfg_file_dump(nd);
+	return true;
 }
 
-static int cfg_save(struct neurite_data_s *nd)
+static int cfg_load_sync(struct neurite_data_s *nd)
 {
+	log_dbg("in\n\r");
+	if (!cfg_load(nd)) {
+		log_err("load cfg failed\n\r");
+		return false;
+	}
+	JsonObject& json = json_buf.parseObject(cfg_buf);
+	if (!json.success()) {
+		log_err("parse cfg failed\n\r");
+		return false;
+	}
+	const char *ssid = json["ssid"];
+	const char *psk = json["psk"];
+	const char *uid = json["uid"];
+	const char *topic_to = json["topic_to"];
+	const char *topic_from = json["topic_from"];
+	log_dbg("loaded ssid: %s\n\r", ssid);
+	log_dbg("loaded psk: %s\n\r", psk);
+	log_dbg("loaded uid: %s\n\r", uid);
+	log_dbg("loaded topic_to: %s\n\r", topic_to);
+	log_dbg("loaded topic_from: %s\n\r", topic_from);
+#if 1
+	if (ssid)
+		strncpy(nd->cfg.ssid, ssid, NEURITE_SSID_LEN);
+	if (psk)
+		strncpy(nd->cfg.psk, psk, NEURITE_PSK_LEN);
+	if (uid)
+		strncpy(nd->cfg.uid, uid, NEURITE_UID_LEN);
+	if (topic_to)
+		strncpy(nd->cfg.topic_to, topic_to, NEURITE_TOPIC_LEN);
+	if (topic_from)
+		strncpy(nd->cfg.topic_from, topic_from, NEURITE_TOPIC_LEN);
+#endif
+	cfg_run_dump(nd);
 }
 
-static bool cfg_check_empty(struct neurite_data_s *nd)
+static bool cfg_save_sync(struct neurite_data_s *nd)
 {
-	return false;
+	JsonObject& json = json_buf.createObject();
+
+	cfg_run_dump(nd);
+
+	json["ssid"] = nd->cfg.ssid;
+	json["psk"] = nd->cfg.psk;
+	json["uid"] = nd->cfg.uid;
+	json["topic_to"] = nd->cfg.topic_to;
+	json["topic_from"] = nd->cfg.topic_from;
+	const char *ssid = json["ssid"];
+	const char *psk = json["psk"];
+	const char *uid = json["uid"];
+	const char *topic_to = json["topic_to"];
+	const char *topic_from = json["topic_from"];
+	log_dbg("ssid: %s\n\r", ssid);
+	log_dbg("psk: %s\n\r", psk);
+	log_dbg("uid: %s\n\r", uid);
+	log_dbg("topic_to: %s\n\r", topic_to);
+	log_dbg("topic_from: %s\n\r", topic_from);
+
+	File configFile = SPIFFS.open(NEURITE_CFG_PATH, "w");
+	if (!configFile) {
+		log_err("open failed\n\r");
+		return false;
+	} else {
+		log_dbg("open successfully\n\r");
+	}
+	size_t size = json.printTo(configFile);
+	log_dbg("wrote %d bytes\n\r", size);
+	configFile.close();
+	cfg_file_dump(nd);
+	return true;
+}
+
+static bool cfg_validate(struct neurite_data_s *nd)
+{
+	log_dbg("in\n\r");
+	if (!cfg_load(nd)) {
+		log_err("load cfg failed\n\r");
+		return false;
+	}
+	JsonObject& json = json_buf.parseObject(cfg_buf);
+	if (!json.success()) {
+		log_err("parse cfg failed\n\r");
+		return false;
+	}
+	const char *ssid = json["ssid"];
+	const char *psk = json["psk"];
+	log_dbg("loaded ssid: %s\n\r", ssid);
+	log_dbg("loaded psk: %s\n\r", psk);
+	if (!ssid || (strcmp(ssid, SSID1) == 0)) {
+		log_warn("no ssid cfg\n\r");
+		return false;
+	}
+
+	log_dbg("out\n\r");
+	return true;
 }
 
 static void wifi_connect(struct neurite_data_s *nd)
 {
 	log_dbg("Connecting to ");
-	Serial.println(SSID1);
+	Serial.println(nd->cfg.ssid);
 #ifdef WIFI_CONFIG_MULTI
-	WiFiMulti.addAP(SSID1, PSK1);
+	WiFiMulti.addAP(nd->cfg.ssid, nd->cfg.psk);
 	WiFiMulti.addAP(SSID2, PSK2);
 #else
-	WiFi.begin(SSID1, PSK1);
+	WiFi.begin(nd->cfg.ssid, nd->cfg.psk);
 #endif
 }
 
@@ -255,6 +381,12 @@ static void ticker_worker_task(void)
 static void button_handler(struct neurite_data_s *nd, int dts)
 {
 	log_dbg("button pressed for %d ms\n\r", dts);
+	if (dts > 1000) {
+		if (SPIFFS.remove(NEURITE_CFG_PATH))
+			log_dbg("%s removed\n\r", NEURITE_CFG_PATH);
+		else
+			log_err("%s failed to remove\n\r", NEURITE_CFG_PATH);
+	}
 }
 
 static void ticker_button_task(struct neurite_data_s *nd)
@@ -397,19 +529,20 @@ static void fs_init(struct neurite_data_s *nd)
 		log_err("failed to mount fs\n\r");
 		dbg_assert(0);
 	}
-	log_dbg("Total: %u\n\r"
-		"Used: %u\n\r"
-		"Block: %u\n\r"
-		"Page: %u\n\r"
-		"Max open files: %u\n\r"
-		"Max path len: %u\n\r",
-		info.totalBytes,
-		info.usedBytes,
-		info.blockSize,
-		info.pageSize,
-		info.maxOpenFiles,
-		info.maxPathLength
-	);
+	log_dbg("Total: %u\n\r", info.totalBytes);
+	log_dbg("Used: %u\n\r", info.usedBytes);
+	log_dbg("Block: %u\n\r", info.blockSize);
+	log_dbg("Page: %u\n\r", info.pageSize);
+	log_dbg("Max open files: %u\n\r", info.maxOpenFiles);
+	log_dbg("Max path len: %u\n\r", info.maxPathLength);
+
+	Dir dir = SPIFFS.openDir("/");
+	while (dir.next()) {
+		String fileName = dir.fileName();
+		size_t fileSize = dir.fileSize();
+		log_dbg("file: %s, size: %s\n\r",
+			fileName.c_str(), formatBytes(fileSize).c_str());
+	}
 }
 
 static void cfg_init(struct neurite_data_s *nd)
@@ -423,17 +556,72 @@ static void cfg_init(struct neurite_data_s *nd)
 	sprintf(nd->cfg.topic_to, "/neuro/chatroom", nd->cfg.uid);
 	sprintf(nd->cfg.topic_from, "/neuro/chatroom", nd->cfg.uid);
 #endif
+	sprintf(nd->cfg.ssid, "%s", SSID1);
+	sprintf(nd->cfg.psk, "%s", PSK1);
+	cfg_save_sync(nd);
+}
 #if 0
-	sprintf(nd->cfg->sta_ssid, "%s", STA_SSID);
-	sprintf(nd->cfg->sta_pwd, "%s", STA_PASS);
-#endif
+bool loadConfig() {
+  File configFile = SPIFFS.open(NEURITE_CFG_PATH, "r");
+  if (!configFile) {
+    Serial.println("Failed to open config file");
+    return false;
+  }
+
+  size_t size = configFile.size();
+  if (size > 1024) {
+    Serial.println("Config file size is too large");
+    return false;
+  }
+
+  // Allocate a buffer to store contents of the file.
+
+  // We don't use String here because ArduinoJson library requires the input
+  // buffer to be mutable. If you don't use ArduinoJson, you may as well
+  // use configFile.readString instead.
+  configFile.readBytes(cfg_buf, size);
+
+  JsonObject& json = json_buf.parseObject(cfg_buf);
+
+  if (!json.success()) {
+    Serial.println("Failed to parse config file");
+    return false;
+  }
+
+  const char* ssid = json["ssid"];
+  const char* psk = json["psk"];
+
+  // Real world application would store these values in some variables for
+  // later use.
+
+  Serial.print("Loaded ssid: ");
+  Serial.println(ssid);
+  Serial.print("Loaded psk: ");
+  Serial.println(psk);
+  return true;
 }
 
+bool saveConfig() {
+  JsonObject& json = json_buf.createObject();
+  json["ssid"] = "ssidisshort";
+  json["psk"] = "passwordislongenough";
+
+  File configFile = SPIFFS.open(NEURITE_CFG_PATH, "w");
+  if (!configFile) {
+    Serial.println("Failed to open config file for writing");
+    return false;
+  }
+
+  json.printTo(configFile);
+  return true;
+}
+#endif
 void neurite_init(void)
 {
 	struct neurite_data_s *nd = &g_nd;
 	log_dbg("in\n\r");
 
+	__bzero(cfg_buf, NEURITE_CFG_SIZE);
 	__bzero(nd, sizeof(struct neurite_data_s));
 	__bzero(&g_cp, sizeof(struct cmd_parser_s));
 	nd->cp = &g_cp;
@@ -441,22 +629,36 @@ void neurite_init(void)
 	cmd_parser_init(nd->cp, cmd_buf, NEURITE_CMD_BUF_SIZE);
 
 	fs_init(nd);
-	cfg_init(nd);
-
-	if (cfg_check_empty(nd)) {
-		b_cfg_ready = false;
-	} else {
-		cfg_load(nd);
+#if 1
+	if (cfg_validate(nd)) {
+		cfg_load_sync(nd);
 		b_cfg_ready = true;
+		log_dbg("cfg ready\n\r");
+	} else {
+		cfg_init(nd);
+		b_cfg_ready = false;
+		log_dbg("cfg not ready\n\r");
+	}
+#else
+	if (!saveConfig()) {
+		Serial.println("Failed to save config");
+	} else {
+		Serial.println("Config saved");
 	}
 
+	if (!loadConfig()) {
+		Serial.println("Failed to load config");
+	} else {
+		Serial.println("Config loaded");
+	}
+#endif
 	log_info("chip id: %08x\n\r", system_get_chip_id());
 	log_info("uid: %s\n\r", nd->cfg.uid);
 	log_info("topic_to: %s\n\r", nd->cfg.topic_to);
 	log_info("topic_from: %s\n\r", nd->cfg.topic_from);
 #if 0
 	log_dbg("device id: %s\n\r", nd->cfg->device_id);
-	log_dbg("ssid: %s\n\r", nd->cfg->sta_ssid);
+	log_dbg("ssid: %s\n\r", nd->cfg->ssid);
 	log_dbg("psk : %s\n\r", nd->cfg->sta_pwd);
 	log_dbg("mqtt user: %s\n\r", nd->cfg->mqtt_user);
 	log_dbg("mqtt pass: %s\n\r", nd->cfg->mqtt_pass);
@@ -631,18 +833,48 @@ void handleRoot()
 
 void handleSave()
 {
-	String message = "Jolly good config!\n\n";
+	struct neurite_data_s *nd = &g_nd;
+	String message;
+	log_dbg("in\n\r");
 	message += "URI: ";
 	message += server->uri();
 	message += "\nMethod: ";
 	message += (server->method() == HTTP_GET)?"GET":"POST";
 	message += "\nArguments: ";
 	message += server->args();
-	message += "\n";
+	message += "\n\n";
 	for (uint8_t i=0; i<server->args(); i++) {
 		message += " " + server->argName(i) + ": " + server->arg(i) + "\n";
+		if (server->argName(i).equals("ssid")) {
+			if (server->arg(i).length() > NEURITE_SSID_LEN) {
+				log_warn("ssid too long %d (>%d)\n\r",
+					 server->arg(i).length(), NEURITE_SSID_LEN);
+				goto err_handle_save;
+			} else {
+				strncpy(nd->cfg.ssid, server->arg(i).c_str(), NEURITE_SSID_LEN);
+			}
+		} else if (server->argName(i).equals("password")) {
+			if (server->arg(i).length() > NEURITE_PSK_LEN) {
+				log_warn("password too long %d (>%d)\n\r",
+					 server->arg(i).length(), NEURITE_PSK_LEN);
+				goto err_handle_save;
+			} else {
+				strncpy(nd->cfg.psk, server->arg(i).c_str(), NEURITE_PSK_LEN);
+			}
+		} else {
+			log_warn("%s not handled\n\r", server->arg(i).c_str());
+		}
 	}
-	server->send(404, "text/plain", message);
+	message += "Jolly good config!\n";
+	cfg_save_sync(nd);
+	server->send(200, "text/plain", message);
+	log_dbg("out ok\n\r");
+	return;
+err_handle_save:
+	message += "Bad request\n";
+	server->send(400, "text/plain", message);
+	log_dbg("out bad\n\r");
+	return;
 }
 
 /* server test end */
@@ -661,7 +893,7 @@ inline void neurite_worker(void)
 				break;
 			nd->wifi_connected = true;
 			log_dbg("WiFi connected\n\r");
-			log_info("IP address: ");
+			log_info("STA IP address: ");
 			LOG_SERIAL.println(WiFi.localIP());
 			update_worker_state(WORKER_ST_2);
 			break;
@@ -676,7 +908,6 @@ inline void neurite_worker(void)
 			mqtt_config(nd);
 			update_worker_state(WORKER_ST_3);
 			break;
-#if 0
 		case WORKER_ST_3:
 			if (!mqtt_check_status(nd)) {
 				mqtt_connect(nd);
@@ -694,53 +925,12 @@ inline void neurite_worker(void)
 			start_ticker_worker(nd);
 			start_ticker_mon(nd);
 			CMD_SERIAL.println(FPSTR(STR_READY));
+			log_dbg("heap free: %d\n\r", ESP.getFreeHeap());
 			update_worker_state(WORKER_ST_4);
 			break;
 		case WORKER_ST_4:
 			mqtt_cli.loop();
 			break;
-#else
-		case WORKER_ST_3:
-			/*
-			Dir dir = SPIFFS.openDir("/");
-			while (dir.next()) {
-				String fileName = dir.fileName();
-				size_t fileSize = dir.fileSize();
-				log_dbg("file: %s, size: %s\n\r",
-					fileName.c_str(), formatBytes(fileSize).c_str());
-			}
-			*/
-			server = new ESP8266WebServer(80);
-			server->on("/list", HTTP_GET, handleFileList);
-			server->on("/edit", HTTP_GET, []() {
-				if (!handleFileRead("/edit.htm")) server->send(404, "text/plain", "FileNotFound");
-			});
-			server->on("/edit", HTTP_PUT, handleFileCreate);
-			server->on("/edit", HTTP_DELETE, handleFileDelete);
-			server->on("/edit", HTTP_POST, []() { server->send(200, "text/plain", ""); }, handleFileUpload);
-			server->on("/save", HTTP_POST, handleSave);
-
-			server->onNotFound(handleNotFound);
-
-			server->on("/all", HTTP_GET, []() {
-				String json = "{";
-				json += "\"heap\":"+String(ESP.getFreeHeap());
-				json += ", \"analog\":"+String(analogRead(A0));
-				json += ", \"gpio\":"+String((uint32_t)(((GPI | GPO) & 0xFFFF) | ((GP16I & 0x01) << 16)));
-				json += "}";
-				server->send(200, "text/json", json);
-				json = String();
-			});
-
-			server->on("/", handleRoot);
-			server->begin();
-			log_dbg("HTTP server started\n\r");
-			update_worker_state(WORKER_ST_4);
-			break;
-		case WORKER_ST_4:
-			server->handleClient();
-			break;
-#endif
 		default:
 			log_err("unknown worker state: %d\n\r", worker_st);
 			break;
@@ -760,16 +950,62 @@ static inline void update_cfg_state(int st)
 	cfg_st = st;
 }
 
+#ifdef NEURITE_ENABLE_MDNS
+const char *host = "neurite";
+#endif
 inline void neurite_cfg_worker(void)
 {
 	struct neurite_data_s *nd = &g_nd;
+	IPAddress myIP;
 	switch (cfg_st) {
 		case CFG_ST_0:
+			analogWrite(NEURITE_LED, 300);
+			WiFi.softAP(nd->cfg.uid);
+			myIP = WiFi.softAPIP();
+			CMD_SERIAL.print("AP IP address: ");
+			CMD_SERIAL.println(myIP);
 			update_cfg_state(CFG_ST_1);
 			break;
 		case CFG_ST_1:
+#ifdef NEURITE_ENABLE_MDNS
+			MDNS.begin(host);
+			CMD_SERIAL.print("Open http://");
+			CMD_SERIAL.print(host);
+			CMD_SERIAL.println(".local to get started");
+#endif
+			server = new ESP8266WebServer(80);
+			server->on("/list", HTTP_GET, handleFileList);
+			server->on("/edit", HTTP_GET, []() {
+				if (!handleFileRead("/edit.htm"))
+					server->send(404, "text/plain", "FileNotFound");
+			});
+			server->on("/edit", HTTP_PUT, handleFileCreate);
+			server->on("/edit", HTTP_DELETE, handleFileDelete);
+			server->on("/edit", HTTP_POST, []() {
+				server->send(200, "text/plain", "");
+			}, handleFileUpload);
+			server->on("/save", HTTP_POST, handleSave);
+
+			server->onNotFound(handleNotFound);
+
+			server->on("/all", HTTP_GET, []() {
+				String json = "{";
+				json += "\"heap\":"+String(ESP.getFreeHeap());
+				json += ", \"analog\":"+String(analogRead(A0));
+				json += ", \"gpio\":"+String((uint32_t)(((GPI | GPO) & 0xFFFF) | ((GP16I & 0x01) << 16)));
+				json += "}";
+				server->send(200, "text/json", json);
+				json = String();
+			});
+
+			server->on("/", handleRoot);
+			server->begin();
+			log_dbg("HTTP server started\n\r");
+			log_dbg("heap free: %d\n\r", ESP.getFreeHeap());
+			update_cfg_state(CFG_ST_2);
 			break;
 		case CFG_ST_2:
+			server->handleClient();
 			break;
 		default:
 			log_err("unknown cfg state: %d\n\r", worker_st);
@@ -786,6 +1022,11 @@ void setup()
 	pinMode(NEURITE_LED, OUTPUT);
 	digitalWrite(NEURITE_LED, HIGH);
 	pinMode(NEURITE_BUTTON, INPUT);
+	log_dbg("heap free: %d\n\r", ESP.getFreeHeap());
+	log_dbg("flash size: %d\n\r", ESP.getFlashChipRealSize());
+	log_dbg("sketch size: %d\n\r", ESP.getSketchSize());
+	log_dbg("sketch free: %d\n\r", ESP.getFreeSketchSpace());
+
 	neurite_init();
 }
 
