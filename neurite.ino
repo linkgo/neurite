@@ -49,12 +49,14 @@ extern "C" {
 #define NEURITE_CFG_SIZE	1024
 #define NEURITE_CMD_BUF_SIZE	256
 #define NEURITE_UID_LEN		32
-#define NEURITE_TOPIC_LEN	64
 #define NEURITE_SSID_LEN	32
 #define NEURITE_PSK_LEN		32
 
-#define NEURITE_LED	13
-#define NEURITE_BUTTON	0
+#define MQTT_TOPIC_LEN		64
+#define MQTT_MSG_LEN		256
+
+#define NEURITE_LED		13
+#define NEURITE_BUTTON		0
 
 const char STR_READY[] PROGMEM = "neurite ready";
 
@@ -71,10 +73,11 @@ struct cmd_parser_s {
 
 struct neurite_cfg_s {
 	char uid[NEURITE_UID_LEN];
-	char topic_to[NEURITE_TOPIC_LEN];
-	char topic_from[NEURITE_TOPIC_LEN];
+	char topic_to[MQTT_TOPIC_LEN];
+	char topic_from[MQTT_TOPIC_LEN];
 	char ssid[NEURITE_SSID_LEN];
 	char psk[NEURITE_PSK_LEN];
+	char ota_url[MQTT_MSG_LEN];
 };
 
 struct neurite_data_s {
@@ -99,7 +102,7 @@ Ticker ticker_mon;
 Ticker ticker_but;
 WiFiClient wifi_cli;
 PubSubClient mqtt_cli(wifi_cli);
-StaticJsonBuffer<200> json_buf;
+StaticJsonBuffer<NEURITE_CFG_SIZE> json_buf;
 static char cfg_buf[NEURITE_CFG_SIZE];
 
 static char uid[32];
@@ -168,7 +171,6 @@ static void cfg_file_dump(struct neurite_data_s *nd)
 
 static bool cfg_load(struct neurite_data_s *nd)
 {
-	log_dbg("in\n\r");
 	File configFile = SPIFFS.open(NEURITE_CFG_PATH, "r");
 	if (!configFile) {
 		log_err("open failed\n\r");
@@ -217,9 +219,9 @@ static int cfg_load_sync(struct neurite_data_s *nd)
 	if (uid)
 		strncpy(nd->cfg.uid, uid, NEURITE_UID_LEN);
 	if (topic_to)
-		strncpy(nd->cfg.topic_to, topic_to, NEURITE_TOPIC_LEN);
+		strncpy(nd->cfg.topic_to, topic_to, MQTT_TOPIC_LEN);
 	if (topic_from)
-		strncpy(nd->cfg.topic_from, topic_from, NEURITE_TOPIC_LEN);
+		strncpy(nd->cfg.topic_from, topic_from, MQTT_TOPIC_LEN);
 #endif
 	cfg_run_dump(nd);
 }
@@ -262,7 +264,6 @@ static bool cfg_save_sync(struct neurite_data_s *nd)
 
 static bool cfg_validate(struct neurite_data_s *nd)
 {
-	log_dbg("in\n\r");
 	if (!cfg_load(nd)) {
 		log_err("load cfg failed\n\r");
 		return false;
@@ -359,11 +360,11 @@ static void ticker_monitor_task(struct neurite_data_s *nd)
 	nd->wifi_connected = wifi_check_status(nd);
 	nd->mqtt_connected = mqtt_check_status(nd);
 	if (!nd->wifi_connected && worker_st >= WORKER_ST_2) {
-		log_warn("WiFi diconnected\n\r");
+		log_warn("WiFi disconnected\n\r");
 		update_worker_state(WORKER_ST_0);
 	}
 	if (!nd->mqtt_connected && worker_st >= WORKER_ST_4) {
-		log_warn("MQTT diconnected\n\r");
+		log_warn("MQTT disconnected\n\r");
 		update_worker_state(WORKER_ST_3);
 	}
 }
@@ -378,10 +379,14 @@ static void ticker_worker_task(void)
 #endif
 }
 
-static void button_handler(struct neurite_data_s *nd, int dts)
+static void button_release_handler(struct neurite_data_s *nd, int dts)
 {
 	log_dbg("button pressed for %d ms\n\r", dts);
-	if (dts > 1000) {
+}
+
+static void button_hold_handler(struct neurite_data_s *nd, int dts)
+{
+	if (dts > 5000) {
 		if (SPIFFS.remove(NEURITE_CFG_PATH))
 			log_dbg("%s removed\n\r", NEURITE_CFG_PATH);
 		else
@@ -400,11 +405,13 @@ static void ticker_button_task(struct neurite_data_s *nd)
 		ts = millis();
 		r_prev = r_curr;
 	} else {
-		if ((r_curr == HIGH) && (r_prev == LOW)) {
+		if (r_prev == LOW) {
 			dts = millis() - ts;
 			r_prev = r_curr;
-			if (dts > 89)
-				button_handler(nd, dts);
+			if (r_curr == HIGH)
+				button_release_handler(nd, dts);
+			else
+				button_hold_handler(nd, dts);
 		}
 	}
 }
@@ -549,13 +556,8 @@ static void cfg_init(struct neurite_data_s *nd)
 {
 	__bzero(&nd->cfg, sizeof(struct neurite_cfg_s));
 	sprintf(nd->cfg.uid, "neurite-%08x", ESP.getChipId());
-#if 0
-	sprintf(nd->cfg.topic_to, "/neuro/%s/to", nd->cfg.uid);
-	sprintf(nd->cfg.topic_from, "/neuro/%s/to", nd->cfg.uid);
-#else
 	sprintf(nd->cfg.topic_to, "/neuro/chatroom", nd->cfg.uid);
 	sprintf(nd->cfg.topic_from, "/neuro/chatroom", nd->cfg.uid);
-#endif
 	sprintf(nd->cfg.ssid, "%s", SSID1);
 	sprintf(nd->cfg.psk, "%s", PSK1);
 	cfg_save_sync(nd);
