@@ -105,7 +105,7 @@ PubSubClient mqtt_cli(wifi_cli);
 StaticJsonBuffer<NEURITE_CFG_SIZE> json_buf;
 static char cfg_buf[NEURITE_CFG_SIZE];
 
-static char uid[32];
+static void reboot(struct neurite_data_s *nd);
 
 enum {
 	WORKER_ST_0 = 0,
@@ -387,10 +387,12 @@ static void button_release_handler(struct neurite_data_s *nd, int dts)
 static void button_hold_handler(struct neurite_data_s *nd, int dts)
 {
 	if (dts > 5000) {
-		if (SPIFFS.remove(NEURITE_CFG_PATH))
-			log_dbg("%s removed\n\r", NEURITE_CFG_PATH);
-		else
+		if (SPIFFS.remove(NEURITE_CFG_PATH)) {
+			log_info("%s removed\n\r", NEURITE_CFG_PATH);
+			reboot(nd);
+		} else {
 			log_err("%s failed to remove\n\r", NEURITE_CFG_PATH);
+		}
 	}
 }
 
@@ -463,6 +465,17 @@ static inline void start_ticker_but(struct neurite_data_s *nd)
 {
 	stop_ticker_but(nd);
 	ticker_but.attach_ms(50, ticker_button_task, nd);
+}
+
+static void reboot(struct neurite_data_s *nd)
+{
+	log_info("rebooting...\n\r");
+	stop_ticker_but(nd);
+	stop_ticker_mon(nd);
+	stop_ticker_worker(nd);
+	stop_ticker_led(nd);
+	stop_ticker_cmd(nd);
+	ESP.restart();
 }
 
 static void cmd_completed_cb(struct cmd_parser_s *cp)
@@ -618,64 +631,12 @@ bool saveConfig() {
   return true;
 }
 #endif
-void neurite_init(void)
-{
-	struct neurite_data_s *nd = &g_nd;
-	log_dbg("in\n\r");
-
-	__bzero(cfg_buf, NEURITE_CFG_SIZE);
-	__bzero(nd, sizeof(struct neurite_data_s));
-	__bzero(&g_cp, sizeof(struct cmd_parser_s));
-	nd->cp = &g_cp;
-	__bzero(cmd_buf, NEURITE_CMD_BUF_SIZE);
-	cmd_parser_init(nd->cp, cmd_buf, NEURITE_CMD_BUF_SIZE);
-
-	fs_init(nd);
-#if 1
-	if (cfg_validate(nd)) {
-		cfg_load_sync(nd);
-		b_cfg_ready = true;
-		log_dbg("cfg ready\n\r");
-	} else {
-		cfg_init(nd);
-		b_cfg_ready = false;
-		log_dbg("cfg not ready\n\r");
-	}
-#else
-	if (!saveConfig()) {
-		Serial.println("Failed to save config");
-	} else {
-		Serial.println("Config saved");
-	}
-
-	if (!loadConfig()) {
-		Serial.println("Failed to load config");
-	} else {
-		Serial.println("Config loaded");
-	}
-#endif
-	log_info("chip id: %08x\n\r", system_get_chip_id());
-	log_info("uid: %s\n\r", nd->cfg.uid);
-	log_info("topic_to: %s\n\r", nd->cfg.topic_to);
-	log_info("topic_from: %s\n\r", nd->cfg.topic_from);
-#if 0
-	log_dbg("device id: %s\n\r", nd->cfg->device_id);
-	log_dbg("ssid: %s\n\r", nd->cfg->ssid);
-	log_dbg("psk : %s\n\r", nd->cfg->sta_pwd);
-	log_dbg("mqtt user: %s\n\r", nd->cfg->mqtt_user);
-	log_dbg("mqtt pass: %s\n\r", nd->cfg->mqtt_pass);
-#endif
-	start_ticker_but(nd);
-	start_ticker_cmd(nd);
-	log_dbg("out\n\r");
-}
-
 /* TODO server test */
 
 ESP8266WebServer *server;
 File fsUploadFile;
 
-void handleNotFound() {
+static void handleNotFound() {
 	if (!handleFileRead(server->uri())) {
 		String message = "File Not Found\n\n";
 		message += "URI: ";
@@ -977,10 +938,6 @@ inline void neurite_cfg_worker(void)
 #endif
 			server = new ESP8266WebServer(80);
 			server->on("/list", HTTP_GET, handleFileList);
-			server->on("/edit", HTTP_GET, []() {
-				if (!handleFileRead("/edit.htm"))
-					server->send(404, "text/plain", "FileNotFound");
-			});
 			server->on("/edit", HTTP_PUT, handleFileCreate);
 			server->on("/edit", HTTP_DELETE, handleFileDelete);
 			server->on("/edit", HTTP_POST, []() {
@@ -1013,6 +970,40 @@ inline void neurite_cfg_worker(void)
 			log_err("unknown cfg state: %d\n\r", worker_st);
 			break;
 	}
+}
+
+void neurite_init(void)
+{
+	struct neurite_data_s *nd = &g_nd;
+	log_dbg("in\n\r");
+
+	__bzero(cfg_buf, NEURITE_CFG_SIZE);
+	__bzero(nd, sizeof(struct neurite_data_s));
+	__bzero(&g_cp, sizeof(struct cmd_parser_s));
+	nd->cp = &g_cp;
+	__bzero(cmd_buf, NEURITE_CMD_BUF_SIZE);
+	cmd_parser_init(nd->cp, cmd_buf, NEURITE_CMD_BUF_SIZE);
+
+	fs_init(nd);
+
+	if (cfg_validate(nd)) {
+		cfg_load_sync(nd);
+		b_cfg_ready = true;
+		log_dbg("cfg ready\n\r");
+	} else {
+		cfg_init(nd);
+		b_cfg_ready = false;
+		log_dbg("cfg not ready\n\r");
+	}
+
+	log_info("chip id: %08x\n\r", system_get_chip_id());
+	log_info("uid: %s\n\r", nd->cfg.uid);
+	log_info("topic_to: %s\n\r", nd->cfg.topic_to);
+	log_info("topic_from: %s\n\r", nd->cfg.topic_from);
+
+	start_ticker_but(nd);
+	start_ticker_cmd(nd);
+	log_dbg("out\n\r");
 }
 
 void setup()
