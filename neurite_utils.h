@@ -107,7 +107,10 @@
  * Configs
  */
 
-#define OTA_URL_DEFAULT		"http://192.168.100.154:8080/firmware/esp.bin"
+#define OTA_URL_DEFAULT		"http://123.57.208.39:8080/firmware/esp.bin"
+#define TOPIC_HEADER		"/neuro"
+#define TOPIC_TO_DEFAULT	"/neuro/chatroom"
+#define TOPIC_FROM_DEFAULT	"/neuro/chatroom"
 #define SSID1			"ssid1"
 #define PSK1			"psk1"
 #define SSID2			"ssid2"

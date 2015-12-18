@@ -78,7 +78,6 @@ struct neurite_cfg_s {
 	char topic_from[MQTT_TOPIC_LEN];
 	char ssid[NEURITE_SSID_LEN];
 	char psk[NEURITE_PSK_LEN];
-	char ota_url[MQTT_MSG_LEN];
 };
 
 struct neurite_data_s {
@@ -87,6 +86,7 @@ struct neurite_data_s {
 	struct neurite_cfg_s cfg;
 	struct cmd_parser_s *cp;
 	char uid[NEURITE_UID_LEN];
+	char topic_private[MQTT_TOPIC_LEN];
 };
 
 static struct neurite_data_s g_nd;
@@ -127,6 +127,33 @@ static inline void update_worker_state(int st)
 	worker_st = st;
 }
 
+static int ota_over_http(char *url)
+{
+	if (!url) {
+		log_err("invalid url\n\r");
+		return -1;
+	}
+	log_info("ota firmware: %s\n\r", url);
+
+	t_httpUpdate_return ret;
+	ret = ESPhttpUpdate.update(url);
+
+	switch (ret) {
+		case HTTP_UPDATE_FAILED:
+			log_err("failed\n\r");
+			break;
+
+		case HTTP_UPDATE_NO_UPDATES:
+			log_warn("no updates\n\r");
+			break;
+
+		case HTTP_UPDATE_OK:
+			log_info("ok\n\r");
+			break;
+	}
+	return ret;
+}
+
 static void ticker_led_breath(void)
 {
 	static int val = 700;
@@ -155,10 +182,8 @@ static void cfg_run_dump(struct neurite_data_s *nd)
 {
 	log_dbg("ssid: %s\n\r", nd->cfg.ssid);
 	log_dbg("psk: %s\n\r", nd->cfg.psk);
-	log_dbg("uid: %s\n\r", nd->uid);
 	log_dbg("topic_to: %s\n\r", nd->cfg.topic_to);
 	log_dbg("topic_from: %s\n\r", nd->cfg.topic_from);
-	log_dbg("ota_url: %s\n\r", nd->cfg.ota_url);
 }
 
 static void cfg_file_dump(struct neurite_data_s *nd)
@@ -211,7 +236,6 @@ static int cfg_load_sync(struct neurite_data_s *nd)
 	const char *psk = json["psk"];
 	const char *topic_to = json["topic_to"];
 	const char *topic_from = json["topic_from"];
-	const char *ota_url = json["ota_url"];
 	if (ssid) {
 		log_dbg("loaded ssid: %s\n\r", ssid);
 		strncpy(nd->cfg.ssid, ssid, sizeof(nd->cfg.ssid));
@@ -228,10 +252,6 @@ static int cfg_load_sync(struct neurite_data_s *nd)
 		log_dbg("loaded topic_from: %s\n\r", topic_from);
 		strncpy(nd->cfg.topic_from, topic_from, sizeof(nd->cfg.topic_from));
 	}
-	if (ota_url) {
-		log_dbg("loaded ota_url: %s\n\r", ota_url);
-		strncpy(nd->cfg.ota_url, ota_url, sizeof(nd->cfg.ota_url));
-	}
 	cfg_run_dump(nd);
 }
 
@@ -245,7 +265,6 @@ static bool cfg_save_sync(struct neurite_data_s *nd)
 	json["psk"] = nd->cfg.psk;
 	json["topic_to"] = nd->cfg.topic_to;
 	json["topic_from"] = nd->cfg.topic_from;
-	json["ota_url"] = nd->cfg.ota_url;
 
 	File configFile = SPIFFS.open(NEURITE_CFG_PATH, "w");
 	if (!configFile) {
@@ -306,40 +325,35 @@ static inline bool wifi_check_status(struct neurite_data_s *nd)
 	return (WiFi.status() == WL_CONNECTED);
 }
 
-static int ota_over_http(char *url)
-{
-	if (!url) {
-		log_err("invalid url\n\r");
-		return -1;
-	}
-	log_info("ota firmware: %s\n\r", url);
-
-	t_httpUpdate_return ret;
-	ret = ESPhttpUpdate.update(url);
-
-	switch (ret) {
-		case HTTP_UPDATE_FAILED:
-			log_err("failed\n\r");
-			break;
-
-		case HTTP_UPDATE_NO_UPDATES:
-			log_warn("no updates\n\r");
-			break;
-
-		case HTTP_UPDATE_OK:
-			log_info("ok\n\r");
-			break;
-	}
-	return ret;
-}
-
 static void mqtt_callback(char *topic, byte *payload, unsigned int length)
 {
+	struct neurite_data_s *nd = &g_nd;
 	log_dbg("topic (%d): %s\n\r", strlen(topic), topic);
 	log_dbg("data (%d): ", length);
 	for (int i = 0; i < length; i++)
 		LOG_SERIAL.print((char)payload[i]);
 	LOG_SERIAL.println();
+	if (strncmp(topic, nd->topic_private, strlen(nd->topic_private) - 2) == 0) {
+		char *subtopic = topic + strlen(nd->topic_private) - 2;
+		char *token = NULL;
+		token = strtok(subtopic, "/");
+		if (token == NULL) {
+			log_warn("no subtopic, ignore\n\r");
+		} else if (strcmp(token, "config") == 0) {
+			log_dbg("hit config\n\r");
+		} else if (strcmp(token, "ota") == 0) {
+			log_dbg("hit ota\n\r");
+			ota_over_http((char *)payload);
+		} else {
+			log_warn("unsupported %s\n\r", token);
+		}
+	}
+	if (strcmp(topic, nd->cfg.topic_from) == 0) {
+		for (int i = 0; i < length; i++)
+			CMD_SERIAL.print((char)payload[i]);
+		/* FIXME here follows '\r' and '\n' */
+		CMD_SERIAL.println();
+	}
 }
 
 static inline bool mqtt_check_status(struct neurite_data_s *nd)
@@ -368,7 +382,7 @@ static void ticker_monitor_task(struct neurite_data_s *nd)
 	}
 	if (!nd->mqtt_connected && worker_st >= WORKER_ST_4) {
 		log_warn("MQTT disconnected\n\r");
-		update_worker_state(WORKER_ST_3);
+		update_worker_state(WORKER_ST_0);
 	}
 }
 
@@ -572,14 +586,17 @@ static void cfg_init(struct neurite_data_s *nd)
 {
 	__bzero(&nd->cfg, sizeof(struct neurite_cfg_s));
 	sprintf(nd->uid, "neurite-%08x", ESP.getChipId());
-	sprintf(nd->cfg.topic_to, "/neuro/chatroom", nd->uid);
-	sprintf(nd->cfg.topic_from, "/neuro/chatroom", nd->uid);
+	log_dbg("uid: %s\n\r", nd->uid);
+	sprintf(nd->topic_private, "%s/%s/#", TOPIC_HEADER, nd->uid);
+	log_dbg("topic_private: %s\n\r", nd->topic_private);
+	sprintf(nd->cfg.topic_to, "%s", TOPIC_TO_DEFAULT);
+	sprintf(nd->cfg.topic_from, "%s", TOPIC_FROM_DEFAULT);
 	sprintf(nd->cfg.ssid, "%s", SSID1);
 	sprintf(nd->cfg.psk, "%s", PSK1);
-	sprintf(nd->cfg.ota_url, "%s", OTA_URL_DEFAULT);
 }
 
-static void handleNotFound() {
+static void handleNotFound(void)
+{
 	if (!handleFileRead(server->uri())) {
 		String message = "File Not Found\n\n";
 		message += "URI: ";
@@ -589,7 +606,7 @@ static void handleNotFound() {
 		message += "\nArguments: ";
 		message += server->args();
 		message += "\n";
-		for (uint8_t i=0; i<server->args(); i++) {
+		for (int i = 0; i < server->args(); i++) {
 			message += " " + server->argName(i) + ": " + server->arg(i) + "\n";
 		}
 		server->send(404, "text/plain", message);
@@ -673,7 +690,8 @@ static void handleFileUpload(void)
 
 static void handleFileDelete(void)
 {
-	if (server->args() == 0) return server->send(500, "text/plain", "BAD ARGS");
+	if (server->args() == 0)
+		return server->send(500, "text/plain", "BAD ARGS");
 	String path = server->arg(0);
 	log_info("");
 	LOG_SERIAL.println(path);
@@ -758,7 +776,7 @@ static void handleSave(void)
 	message += "\nArguments: ";
 	message += server->args();
 	message += "\n\n";
-	for (uint8_t i = 0; i<server->args(); i++) {
+	for (int i = 0; i<server->args(); i++) {
 		message += " " + server->argName(i) + ": " + server->arg(i) + "\n";
 		if (server->argName(i).equals("ssid")) {
 			if (server->arg(i).length() > NEURITE_SSID_LEN) {
@@ -783,6 +801,7 @@ static void handleSave(void)
 	message += "Jolly good config!\n";
 	cfg_save_sync(nd);
 	server->send(200, "text/plain", message);
+	/* TODO reboot on save success */
 	log_dbg("out ok\n\r");
 	return;
 err_handle_save:
@@ -842,16 +861,16 @@ inline void neurite_cfg_worker(void)
 			analogWrite(NEURITE_LED, 300);
 			WiFi.softAP(nd->uid);
 			myIP = WiFi.softAPIP();
-			CMD_SERIAL.print("AP IP address: ");
-			CMD_SERIAL.println(myIP);
+			LOG_SERIAL.print("AP IP address: ");
+			LOG_SERIAL.println(myIP);
 			update_cfg_state(CFG_ST_1);
 			break;
 		case CFG_ST_1:
 #ifdef NEURITE_ENABLE_MDNS
 			MDNS.begin(host);
-			CMD_SERIAL.print("Open http://");
-			CMD_SERIAL.print(host);
-			CMD_SERIAL.println(".local to get started");
+			LOG_SERIAL.print("Open http://");
+			LOG_SERIAL.print(host);
+			LOG_SERIAL.println(".local to get started");
 #endif
 			server_config(nd);
 			server->begin();
@@ -891,7 +910,7 @@ inline void neurite_worker(void)
 			if (digitalRead(NEURITE_BUTTON) == LOW) {
 				stop_ticker_led(nd);
 				stop_ticker_but(nd);
-				ota_over_http(nd->cfg.ota_url);
+				ota_over_http(OTA_URL_DEFAULT);
 				start_ticker_but(nd);
 				start_ticker_led_blink(nd);
 			}
@@ -906,6 +925,9 @@ inline void neurite_worker(void)
 
 			nd->mqtt_connected = true;
 			mqtt_cli.subscribe(nd->cfg.topic_from);
+			log_info("subscribe: %s\n\r", nd->cfg.topic_from);
+			mqtt_cli.subscribe(nd->topic_private, 1);
+			log_info("subscribe: %s\n\r", nd->topic_private);
 			char payload_buf[32];
 			dbg_assert(payload_buf);
 			sprintf(payload_buf, "checkin: %s", nd->uid);
