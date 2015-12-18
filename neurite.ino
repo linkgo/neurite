@@ -290,6 +290,7 @@ static void wifi_connect(struct neurite_data_s *nd)
 {
 	log_dbg("Connecting to ");
 	Serial.println(nd->cfg.ssid);
+	WiFi.mode(WIFI_STA);
 #ifdef WIFI_CONFIG_MULTI
 	WiFiMulti.addAP(nd->cfg.ssid, nd->cfg.psk);
 	WiFiMulti.addAP(SSID2, PSK2);
