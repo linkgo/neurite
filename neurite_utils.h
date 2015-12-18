@@ -26,11 +26,6 @@
 #define __NEURITE_UTILS_H__
 
 /*
- * Config
- */
-//#define WIFI_CONFIG_MULTI
-
-/*
  * Log
  */
 #define LOG_ALL		0
@@ -112,12 +107,20 @@
  * Configs
  */
 
-#define OTA_URL_DEFAULT		"http://192.168.31.248:8080/firmware/esp.bin"
+#define OTA_URL_DEFAULT		"http://192.168.100.154:8080/firmware/esp.bin"
 #define SSID1			"ssid1"
 #define PSK1			"psk1"
 #define SSID2			"ssid2"
 #define PSK2			"psk2"
 #define MQTT_SERVER		"accrete.org"
+
+/*
+ * Features
+ */
+//#define NEURITE_ENABLE_WIFIMULTI
+#define NEURITE_ENABLE_SERVER /* typical for dev only */
+#define NEURITE_ENABLE_MDNS
+
 
 
 #endif /* __NEURITE_UTILS_H__ */
