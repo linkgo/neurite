@@ -756,7 +756,9 @@ static void handleRoot(void)
 {
 	if (b_cfg_ready) {
 		String message = String((const char *)g_nd.uid);
-		message += " alive";
+		message += " alive ";
+		message += millis();
+		message += " ms";
 		server->send(200, "text/plain", message);
 	} else {
 		if (!handleFileRead("/index.html"))
