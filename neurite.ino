@@ -133,7 +133,8 @@ static int ota_over_http(char *url)
 		log_err("invalid url\n\r");
 		return -1;
 	}
-	log_info("ota firmware: %s\n\r", url);
+	CMD_SERIAL.print("ota: ");
+	CMD_SERIAL.println(url);
 
 	t_httpUpdate_return ret;
 	ret = ESPhttpUpdate.update(url);
@@ -310,7 +311,7 @@ static bool cfg_validate(struct neurite_data_s *nd)
 static void wifi_connect(struct neurite_data_s *nd)
 {
 	log_dbg("Connecting to ");
-	Serial.println(nd->cfg.ssid);
+	LOG_SERIAL.println(nd->cfg.ssid);
 	WiFi.mode(WIFI_STA);
 #ifdef NEURITE_ENABLE_WIFIMULTI
 	WiFiMulti.addAP(nd->cfg.ssid, nd->cfg.psk);
@@ -889,7 +890,6 @@ inline void neurite_cfg_worker(void)
 	}
 }
 
-
 inline void neurite_worker(void)
 {
 	struct neurite_data_s *nd = &g_nd;
@@ -991,10 +991,14 @@ void neurite_init(void)
 
 void setup()
 {
-	LOG_SERIAL.begin(115200);
-	LOG_SERIAL.setDebugOutput(false);
-	LOG_SERIAL.printf("\n\r");
-	LOG_SERIAL.flush();
+	Serial.begin(115200);
+	Serial.setDebugOutput(false);
+	Serial.printf("\n\r");
+	Serial.flush();
+	Serial1.begin(115200);
+	Serial1.setDebugOutput(false);
+	Serial1.printf("\n\r");
+	Serial1.flush();
 	pinMode(NEURITE_LED, OUTPUT);
 	digitalWrite(NEURITE_LED, HIGH);
 	pinMode(NEURITE_BUTTON, INPUT);
