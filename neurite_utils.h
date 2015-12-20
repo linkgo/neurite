@@ -26,6 +26,28 @@
 #define __NEURITE_UTILS_H__
 
 /*
+ * Configs
+ */
+
+#define OTA_URL_DEFAULT		"http://123.57.208.39:8080/firmware/esp.bin"
+#define TOPIC_HEADER		"/neuro"
+#define TOPIC_TO_DEFAULT	"/neuro/chatroom"
+#define TOPIC_FROM_DEFAULT	"/neuro/chatroom"
+#define SSID1			"ssid1"
+#define PSK1			"psk1"
+#define SSID2			"ssid2"
+#define PSK2			"psk2"
+#define MQTT_SERVER		"accrete.org"
+
+/*
+ * Features
+ */
+//#define NEURITE_ENABLE_WIFIMULTI
+#define NEURITE_ENABLE_SERVER /* typical for dev only */
+#define NEURITE_ENABLE_MDNS
+#define NEURITE_ENABLE_DEV
+
+/*
  * Log
  */
 #define LOG_ALL		0
@@ -36,11 +58,15 @@
 #define LOG_FATAL	5
 #define LOG_LEVEL	LOG_ALL
 
+#define CMD_SERIAL	Serial
+#ifdef NEURITE_ENABLE_DEV
+#define LOG_SERIAL	Serial
+#else
+#define LOG_SERIAL	Serial1
+#endif
+
 #define __dec		(millis()/1000)
 #define __frac		(millis()%1000)
-
-#define CMD_SERIAL	Serial
-#define LOG_SERIAL	Serial
 #define APP_PRINTF	LOG_SERIAL.printf
 
 #define log_dbg(msg, args...) \
@@ -102,28 +128,5 @@
  */
 
 #define __bzero(m,s)		memset(m,0,s)
-
-/*
- * Configs
- */
-
-#define OTA_URL_DEFAULT		"http://123.57.208.39:8080/firmware/esp.bin"
-#define TOPIC_HEADER		"/neuro"
-#define TOPIC_TO_DEFAULT	"/neuro/chatroom"
-#define TOPIC_FROM_DEFAULT	"/neuro/chatroom"
-#define SSID1			"ssid1"
-#define PSK1			"psk1"
-#define SSID2			"ssid2"
-#define PSK2			"psk2"
-#define MQTT_SERVER		"accrete.org"
-
-/*
- * Features
- */
-//#define NEURITE_ENABLE_WIFIMULTI
-#define NEURITE_ENABLE_SERVER /* typical for dev only */
-#define NEURITE_ENABLE_MDNS
-
-
 
 #endif /* __NEURITE_UTILS_H__ */
