@@ -38,7 +38,9 @@
 #endif
 #include <PubSubClient.h>
 #include <Ticker.h>
-#include <ArduinoJson.h>
+/* FIXME PlatformIO build fails on including <ArduinoJson.h> */
+//#include <ArduinoJson.h>
+#include "include/ArduinoJson.h"
 #include "FS.h"
 
 extern "C" {
@@ -485,17 +487,6 @@ static inline void start_ticker_but(struct neurite_data_s *nd)
 	ticker_but.attach_ms(50, ticker_button_task, nd);
 }
 
-static void reboot(struct neurite_data_s *nd)
-{
-	log_info("rebooting...\n\r");
-	stop_ticker_but(nd);
-	stop_ticker_mon(nd);
-	stop_ticker_worker(nd);
-	stop_ticker_led(nd);
-	stop_ticker_cmd(nd);
-	ESP.restart();
-}
-
 static void cmd_completed_cb(struct cmd_parser_s *cp)
 {
 	struct neurite_data_s *nd = &g_nd;
@@ -554,6 +545,17 @@ static void start_ticker_cmd(struct neurite_data_s *nd)
 {
 	stop_ticker_cmd(nd);
 	ticker_cmd.attach_ms(1, ticker_cmd_task, nd);
+}
+
+static void reboot(struct neurite_data_s *nd)
+{
+	log_info("rebooting...\n\r");
+	stop_ticker_but(nd);
+	stop_ticker_mon(nd);
+	stop_ticker_worker(nd);
+	stop_ticker_led(nd);
+	stop_ticker_cmd(nd);
+	ESP.restart();
 }
 
 static void fs_init(struct neurite_data_s *nd)
