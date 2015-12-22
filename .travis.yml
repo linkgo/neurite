@@ -24,42 +24,26 @@
 # Template #1: General project. Test it using existing `platformio.ini`.
 #
 
-# language: python
-# python:
-#     - "2.7"
-#
-# sudo: false
-# cache:
-#     directories:
-#         - "~/.platformio"
-#
-# install:
-#     - pip install -U platformio
-#
-# script:
-#     - platformio run
+language: python
+python:
+    - "2.7"
 
+sudo: false
+cache:
+    directories:
+        - "~/.platformio"
 
-#
-# Template #2: The project is intended to by used as a library with examples
-#
+env:
+    - PLATFORMIO_CI_SRC=src
 
-# language: python
-# python:
-#     - "2.7"
-#
-# sudo: false
-# cache:
-#     directories:
-#         - "~/.platformio"
-#
-# env:
-#     - PLATFORMIO_CI_SRC=path/to/test/file.c
-#     - PLATFORMIO_CI_SRC=examples/file.ino
-#     - PLATFORMIO_CI_SRC=path/to/test/directory
-#
-# install:
-#     - pip install -U platformio
-#
-# script:
-#     - platformio ci --lib="." --board=TYPE_1 --board=TYPE_2 --board=TYPE_N
+install:
+    - pip install -U platformio
+
+    # [ ID  ] Name             URL
+    # ---------------------------------------------------------------------
+    # [ 64  ] Json             http://platformio.org/#!/lib/show/64/Json
+    # [ 89  ] PubSubClient     http://platformio.org/#!/lib/show/89/PubSubClient
+    - platformio lib install 64 89
+
+script:
+    - platformio run
