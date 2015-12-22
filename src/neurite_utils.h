@@ -45,7 +45,7 @@
 //#define NEURITE_ENABLE_WIFIMULTI
 #define NEURITE_ENABLE_SERVER /* typical for dev only */
 #define NEURITE_ENABLE_MDNS
-#define NEURITE_ENABLE_DEV
+#define NEURITE_BUILD_DEV
 
 /*
  * Log
@@ -59,7 +59,7 @@
 #define LOG_LEVEL	LOG_ALL
 
 #define CMD_SERIAL	Serial
-#ifdef NEURITE_ENABLE_DEV
+#ifdef NEURITE_BUILD_DEV
 #define LOG_SERIAL	Serial
 #else
 #define LOG_SERIAL	Serial1
