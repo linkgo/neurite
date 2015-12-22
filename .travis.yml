@@ -43,7 +43,7 @@ install:
 before_script:
     - mv ~/.platformio/lib/Json_ID64/test /tmp/
     - mkdir -p ~/.platformio/boards/
-    - cp boards/neurite.json ~/.platformio/boards/
+    - cp platformio/boards/neurite.json ~/.platformio/boards/
 
 script:
     - platformio run
