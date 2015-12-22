@@ -21,29 +21,34 @@
 
 language: python
 python:
-    - "2.7"
+  - "2.7"
 
 sudo: false
 cache:
-    directories:
-        - "~/.platformio"
+  directories:
+    - "~/.platformio"
 
 env:
-    - PLATFORMIO_CI_SRC=src
+  - PLATFORMIO_CI_SRC=src
 
 install:
-    - pip install -U platformio
+  - pip install -U platformio
 
-    # [ ID  ] Name             URL
-    # ---------------------------------------------------------------------
-    # [ 64  ] Json             http://platformio.org/#!/lib/show/64/Json
-    # [ 89  ] PubSubClient     http://platformio.org/#!/lib/show/89/PubSubClient
-    - platformio lib install 64 89
+  # [ ID  ] Name             URL
+  # ---------------------------------------------------------------------
+  # [ 64  ] Json             http://platformio.org/#!/lib/show/64/Json
+  # [ 89  ] PubSubClient     http://platformio.org/#!/lib/show/89/PubSubClient
+  - platformio lib install 64 89
 
 before_script:
-    - mv ~/.platformio/lib/Json_ID64/test /tmp/
-    - mkdir -p ~/.platformio/boards/
-    - cp platformio/boards/neurite.json ~/.platformio/boards/
+  - mv ~/.platformio/lib/Json_ID64/test /tmp/
+  - mkdir -p ~/.platformio/boards/
+  - cp platformio/boards/neurite.json ~/.platformio/boards/
 
 script:
-    - platformio run
+  - platformio run
+
+notifications:
+  slack:
+    rooms:
+      - linkgo-io:csFT4H0MBCbg35MQUpEEjRfd#github-linkgo
