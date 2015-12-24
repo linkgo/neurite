@@ -1,3 +1,12 @@
+#
+# PlatformIO Libraries:
+#
+# [ ID  ] Name             URL
+# ---------------------------------------------------------------------
+# [ 64  ] Json             http://platformio.org/#!/lib/show/64/Json
+# [ 89  ] PubSubClient     http://platformio.org/#!/lib/show/89/PubSubClient
+#
+
 language: python
 python:
 - '2.7'
