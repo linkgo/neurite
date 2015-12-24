@@ -1,54 +1,30 @@
-# Continuous Integration (CI) is the practice, in software
-# engineering, of merging all developer working copies with a shared mainline
-# several times a day < http://docs.platformio.org/en/latest/ci/index.html >
-#
-# Documentation:
-#
-# * Travis CI Embedded Builds with PlatformIO
-#   < https://docs.travis-ci.com/user/integration/platformio/ >
-#
-# * PlatformIO integration with Travis CI
-#   < http://docs.platformio.org/en/latest/ci/travis.html >
-#
-# * User Guide for `platformio ci` command
-#   < http://docs.platformio.org/en/latest/userguide/cmd_ci.html >
-#
-#
-# Please choice one of the following templates (proposed below) and uncomment
-# it (remove "# " before each line) or use own configuration according to the
-# Travis CI documentation (see above).
-#
-
 language: python
 python:
-  - "2.7"
-
+- '2.7'
 sudo: false
 cache:
   directories:
-    - "~/.platformio"
-
+  - ~/.platformio
 env:
-  - PLATFORMIO_CI_SRC=src
-
+- PLATFORMIO_CI_SRC=src
 install:
-  - pip install -U platformio
-
-  # [ ID  ] Name             URL
-  # ---------------------------------------------------------------------
-  # [ 64  ] Json             http://platformio.org/#!/lib/show/64/Json
-  # [ 89  ] PubSubClient     http://platformio.org/#!/lib/show/89/PubSubClient
-  - platformio lib install 64 89
-
+- pip install -U platformio
+- platformio lib install 64 89
 before_script:
-  - rm -rf ~/.platformio/lib/Json_ID64/test
-  - mkdir -p ~/.platformio/boards/
-  - cp platformio/boards/neurite.json ~/.platformio/boards/
-
+- rm -rf ~/.platformio/lib/Json_ID64/test
+- mkdir -p ~/.platformio/boards/
+- cp platformio/boards/neurite.json ~/.platformio/boards/
 script:
-  - platformio run
-
+- platformio run
 notifications:
   slack:
     rooms:
-      - linkgo-io:csFT4H0MBCbg35MQUpEEjRfd#github-linkgo
+    - linkgo-io:csFT4H0MBCbg35MQUpEEjRfd#github-linkgo
+deploy:
+  provider: releases
+  api_key:
+    secure: ofjZq7bRWUW4sYprfKrxtnQ77KXjMKNgdFHj6ZArDbX0Uc96D//iSRFaZ+KzMGD9eD1Rm0ETimYriXgPGsfS461kcyB/Rw8kyCDgR+jsrNCfFUu6giaCdLUNp0+EZlk7Ohvy4EeHknpVRmqedrPStx+H0NA+7nO1xNgF0kGNtELgve+D8OhDPMtG8YgxkI9vFGbyZz4pIDMIn/OTtB5y4iDqlLwzxnHb4olobfgFdYI2yJQZ+JAfEL7bxmVXvKk3B75PbkbTv65o1gtYBg4dJ8IUoBHlCvYbWalj3uNdAzy2cXuaD8JrPFnOZ/hJhaT231MXS9s5GPiyEOoFugY9JeUgzS97pMQNoquLslodwOFjfZ6eVeIRQ5Nq43bOa67tatSJi7cc5EXEdeId9J0PA423NkhDmjGwrjT6aiyVw4wP00u5hKgkwcGjkfbS0pQvWxqFKVfr5Lnw67b7FoWjB14PCSLGtdELD+SSpykF2vYKJ8rxvycsSblf+kBrifrrEZJThVAqsJn3d7riMZ1UEMeGwoTC6C5xyFX3v7SeG2R78vyREA4ZNqTE8rjeo7mFXtG+ZiUpXyS+KmhoCfiiEZcI0zIN0wl27wDWbCuAsOnrdImSyiRFAPxiiYFz0yJQY3pJgMZQ6tkE5WLh6sayet6Knzf+1WBwJm/V4CbxkKI=
+  file:
+    - .pioenvs/neurite/firmware.bin
+  on:
+    repo: linkgo/neurite
