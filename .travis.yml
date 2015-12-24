@@ -26,5 +26,6 @@ deploy:
     secure: ofjZq7bRWUW4sYprfKrxtnQ77KXjMKNgdFHj6ZArDbX0Uc96D//iSRFaZ+KzMGD9eD1Rm0ETimYriXgPGsfS461kcyB/Rw8kyCDgR+jsrNCfFUu6giaCdLUNp0+EZlk7Ohvy4EeHknpVRmqedrPStx+H0NA+7nO1xNgF0kGNtELgve+D8OhDPMtG8YgxkI9vFGbyZz4pIDMIn/OTtB5y4iDqlLwzxnHb4olobfgFdYI2yJQZ+JAfEL7bxmVXvKk3B75PbkbTv65o1gtYBg4dJ8IUoBHlCvYbWalj3uNdAzy2cXuaD8JrPFnOZ/hJhaT231MXS9s5GPiyEOoFugY9JeUgzS97pMQNoquLslodwOFjfZ6eVeIRQ5Nq43bOa67tatSJi7cc5EXEdeId9J0PA423NkhDmjGwrjT6aiyVw4wP00u5hKgkwcGjkfbS0pQvWxqFKVfr5Lnw67b7FoWjB14PCSLGtdELD+SSpykF2vYKJ8rxvycsSblf+kBrifrrEZJThVAqsJn3d7riMZ1UEMeGwoTC6C5xyFX3v7SeG2R78vyREA4ZNqTE8rjeo7mFXtG+ZiUpXyS+KmhoCfiiEZcI0zIN0wl27wDWbCuAsOnrdImSyiRFAPxiiYFz0yJQY3pJgMZQ6tkE5WLh6sayet6Knzf+1WBwJm/V4CbxkKI=
   file:
     - .pioenvs/neurite/firmware.bin
+  skip_cleanup: true
   on:
-    repo: linkgo/neurite
+    tags: true
