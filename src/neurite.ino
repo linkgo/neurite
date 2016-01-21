@@ -1047,6 +1047,9 @@ void loop()
  */
 
 #ifdef NEURITE_ENABLE_USER
+
+#define NEURITE_IO	14
+
 Ticker ticker_user;
 
 void ticker_user_task(void)
@@ -1066,9 +1069,9 @@ void neurite_user_mqtt(char *topic, byte *payload, unsigned int length)
 		if (strcmp(token, "io") == 0) {
 			log_dbg("hit io, payload: %c\n\r", payload[0]);
 			if (payload[0] == '0')
-				digitalWrite(14, LOW);
+				digitalWrite(NEURITE_IO, LOW);
 			else
-				digitalWrite(14, HIGH);
+				digitalWrite(NEURITE_IO, HIGH);
 		}
 	}
 	if (strcmp(topic, nd->cfg.topic_from) == 0) {
@@ -1081,9 +1084,9 @@ void neurite_user_mqtt(char *topic, byte *payload, unsigned int length)
 		    payload[5] == ' ' &&
 		    payload[6] == 'o')
 			if (payload[7] == 'n')
-				digitalWrite(14, LOW);
+				digitalWrite(NEURITE_IO, LOW);
 			else
-				digitalWrite(14, HIGH);
+				digitalWrite(NEURITE_IO, HIGH);
 	}
 }
 
@@ -1114,8 +1117,8 @@ void neurite_user_button(int time_ms)
 void neurite_user_setup(void)
 {
 	log_dbg("called\n\r");
-	pinMode(14, OUTPUT);
-	digitalWrite(14, HIGH);
+	pinMode(NEURITE_IO, OUTPUT);
+	digitalWrite(NEURITE_IO, HIGH);
 	ticker_user.attach_ms(1000, ticker_user_task);
 }
 #endif
