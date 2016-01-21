@@ -38,9 +38,7 @@
 #endif
 #include <PubSubClient.h>
 #include <Ticker.h>
-/* FIXME PlatformIO build fails on including <ArduinoJson.h> */
-//#include <ArduinoJson.h>
-#include "include/ArduinoJson.h"
+#include <ArduinoJson.h>
 #include "FS.h"
 
 extern "C" {
