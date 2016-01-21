@@ -59,7 +59,7 @@ extern "C" {
 #define MQTT_TOPIC_LEN		64
 #define MQTT_MSG_LEN		256
 
-#define NEURITE_LED		13
+#define NEURITE_LED		5
 #define NEURITE_BUTTON		0
 
 const char STR_READY[] PROGMEM = "neurite ready";
@@ -159,11 +159,11 @@ static int ota_over_http(char *url)
 
 static void ticker_led_breath(void)
 {
-	static int val = 700;
+	static int val = 1023;
 	static int state = 0;
-	if (val >= 700)
+	if (val >= 1023)
 		state = 1;
-	else if (val <= 200)
+	else if (val <= 523)
 		state = 0;
 	else
 		;
@@ -176,9 +176,9 @@ static void ticker_led_breath(void)
 
 static void ticker_led_blink(void)
 {
-	static int val = 1000;
+	static int val = 1023;
 	analogWrite(NEURITE_LED, val);
-	val = (val == 1000) ? 200 : 1000;
+	val = (val == 1023) ? 500 : 1023;
 }
 
 static void cfg_run_dump(struct neurite_data_s *nd)
