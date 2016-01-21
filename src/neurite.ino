@@ -344,9 +344,13 @@ static void mqtt_callback(char *topic, byte *payload, unsigned int length)
 			log_dbg("hit config\n\r");
 		} else if (strcmp(token, "ota") == 0) {
 			log_dbg("hit ota\n\r");
-			ota_over_http((char *)payload);
+			char url[MQTT_MSG_LEN];
+			__bzero(url, sizeof(url));
+			for (int i = 0; i < length; i++)
+				url[i] = payload[i];
+			ota_over_http(url);
 		} else {
-			log_warn("unsupported %s\n\r", token);
+			log_warn("unsupported %s, leave to user\n\r", token);
 		}
 	}
 	if (strcmp(topic, nd->cfg.topic_from) == 0) {
@@ -355,6 +359,9 @@ static void mqtt_callback(char *topic, byte *payload, unsigned int length)
 		/* FIXME here follows '\r' and '\n' */
 		CMD_SERIAL.println();
 	}
+#ifdef NEURITE_ENABLE_USER
+	neurite_user_mqtt(topic, payload, length);
+#endif
 }
 
 static inline bool mqtt_check_status(struct neurite_data_s *nd)
@@ -400,6 +407,9 @@ static void ticker_worker_task(void)
 static void button_release_handler(struct neurite_data_s *nd, int dts)
 {
 	log_dbg("button pressed for %d ms\n\r", dts);
+#ifdef NEURITE_ENABLE_USER
+	neurite_user_button(dts);
+#endif
 }
 
 static void button_hold_handler(struct neurite_data_s *nd, int dts)
@@ -1008,6 +1018,9 @@ void setup()
 	log_dbg("sketch free: %d\n\r", ESP.getFreeSketchSpace());
 
 	neurite_init();
+#ifdef NEURITE_ENABLE_USER
+	neurite_user_setup();
+#endif
 }
 
 void loop()
@@ -1017,3 +1030,71 @@ void loop()
 	else
 		neurite_cfg_worker();
 }
+
+/*
+ * Advanced Development
+ *
+ * Brief:
+ *     Below interfaces are objected to advanced development based on Neurite.
+ *     Also these code can be take as some example. Thus they are extended
+ *     features, which are not included in Neurite core services.
+ *
+ * Benefits:
+ *     Thanks to Neurite, it's more easily to use below features:
+ *     1. OTA
+ *     2. MQTT
+ *     3. Peripherals
+ */
+
+#ifdef NEURITE_ENABLE_USER
+Ticker ticker_user;
+
+void ticker_user_task(void)
+{
+	/* do something as in a periodically loop */
+}
+
+/* called once on mqtt message received */
+void neurite_user_mqtt(char *topic, byte *payload, unsigned int length)
+{
+	struct neurite_data_s *nd = &g_nd;
+	if (strncmp(topic, nd->topic_private, strlen(nd->topic_private) - 2) == 0) {
+		char *subtopic = topic + strlen(nd->topic_private) - 2;
+		char *token = NULL;
+		token = strtok(subtopic, "/");
+		/* check for something like: /neuro/neurite-000c1636/io */
+		if (strcmp(token, "io") == 0) {
+			log_dbg("hit io, payload: %c\n\r", payload[0]);
+			if (payload[0] == '0')
+				digitalWrite(14, LOW);
+			else
+				digitalWrite(14, HIGH);
+		}
+	}
+}
+
+/* time_ms: the time delta in ms of button press/release cycle. */
+void neurite_user_button(int time_ms)
+{
+	struct neurite_data_s *nd = &g_nd;
+	if (time_ms >= 200) {
+		/* do something on button event */
+		if (nd->mqtt_connected) {
+			static int val = 0;
+			char buf[4];
+			val = 1 - val;
+			sprintf(buf, "%d", val);
+			mqtt_cli.publish("/neuro/neurite-000c1636/io", (const char *)buf);
+		}
+	}
+}
+
+/* will be called after neurite system setup */
+void neurite_user_setup(void)
+{
+	log_dbg("called\n\r");
+	pinMode(14, OUTPUT);
+	digitalWrite(14, HIGH);
+	ticker_user.attach_ms(1000, ticker_user_task);
+}
+#endif
