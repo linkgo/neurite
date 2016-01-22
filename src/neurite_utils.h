@@ -60,9 +60,9 @@
 #define LOG_FATAL	5
 #define LOG_LEVEL	LOG_ALL
 
-#define CMD_SERIAL	Serial
+#define CMD_SERIAL	Serial1
 #ifdef NEURITE_BUILD_DEV
-#define LOG_SERIAL	Serial
+#define LOG_SERIAL	Serial1
 #else
 #define LOG_SERIAL	Serial1
 #endif

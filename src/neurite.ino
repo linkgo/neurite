@@ -44,6 +44,11 @@
 #include <ArduinoJson.h>
 #include "FS.h"
 
+#include <Adafruit_GFX.h>
+#include <Adafruit_ST7735.h>
+#include <SPI.h>
+
+
 extern "C" {
 #include "osapi.h"
 #include "ets_sys.h"
@@ -1129,10 +1134,10 @@ void neurite_init(void)
 
 void setup()
 {
-	Serial.begin(115200);
-	Serial.setDebugOutput(false);
-	Serial.printf("\n\r");
-	Serial.flush();
+	//Serial.begin(115200);
+	//Serial.setDebugOutput(false);
+	//Serial.printf("\n\r");
+	//Serial.flush();
 	Serial1.begin(115200);
 	Serial1.setDebugOutput(false);
 	Serial1.printf("\n\r");
@@ -1264,5 +1269,59 @@ void neurite_user_button(int time_ms)
 				mqtt_cli.publish(nd->cfg.topic_to, "light off");
 		}
 	}
+}
+
+// For the breakout, you can use any 2 or 3 pins
+// These pins will also work for the 1.8" TFT shield
+#define TFT_CS     15
+#define TFT_RST    3  // you can also connect this to the Arduino reset
+                      // in which case, set this #define pin to 0!
+#define TFT_DC     1
+
+// Option 1 (recommended): must use the hardware SPI pins
+// (for UNO thats sclk = 13 and sid = 11) and pin 10 must be
+// an output. This is much faster - also required if you want
+// to use the microSD card (see the image drawing example)
+Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS,  TFT_DC, TFT_RST);
+
+// Option 2: use any pins but a little slower!
+#define TFT_SCLK 14   // set these to be whatever pins you like!
+#define TFT_MOSI 13   // set these to be whatever pins you like!
+//Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCLK, TFT_RST);
+
+
+static void testdrawtext(char *text, uint16_t color) {
+  tft.setCursor(0, 0);
+  tft.setTextColor(color);
+  tft.setTextWrap(true);
+  tft.print(text);
+}
+
+/* will be called after neurite system setup */
+void neurite_user_setup(void)
+{
+	log_dbg("called\n\r");
+
+	// Use this initializer if you're using a 1.8" TFT
+	//tft.initR(INITR_BLACKTAB);   // initialize a ST7735S chip, black tab
+
+	// Use this initializer (uncomment) if you're using a 1.44" TFT
+	tft.initR(INITR_144GREENTAB);   // initialize a ST7735S chip, black tab
+
+	//Serial.println("Initialized");
+
+	uint16_t time = millis();
+	tft.fillScreen(ST7735_BLACK);
+	time = millis() - time;
+
+	//Serial.println(time, DEC);
+	delay(500);
+
+	// large block of text
+	tft.fillScreen(ST7735_BLACK);
+	testdrawtext("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Curabitur adipiscing ante sed nibh tincidunt feugiat. Maecenas enim massa, fringilla sed malesuada et, malesuada sit amet turpis. Sed porttitor neque ut ante pretium vitae malesuada nunc bibendum. Nullam aliquet ultrices massa eu hendrerit. Ut sed nisi lorem. In vestibulum purus a tortor imperdiet posuere. ", ST7735_WHITE);
+	delay(1000);
+
+	ticker_user.attach_ms(1000, ticker_user_task);
 }
 #endif
