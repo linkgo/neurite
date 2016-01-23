@@ -3,6 +3,7 @@
 #
 # [ ID  ] Name             URL
 # ---------------------------------------------------------------------
+# [ 13  ] Adafruit-GFX     http://platformio.org/#!/lib/show/13/Adafruit-GFX
 # [ 64  ] Json             http://platformio.org/#!/lib/show/64/Json
 # [ 89  ] PubSubClient     http://platformio.org/#!/lib/show/89/PubSubClient
 #
@@ -18,7 +19,7 @@ env:
 - PLATFORMIO_CI_SRC=src
 install:
 - pip install -U platformio
-- platformio lib install 64 89
+- platformio lib install 13 64 89
 before_script:
 - mkdir -p ~/.platformio/boards/
 - cp platformio/boards/neurite.json ~/.platformio/boards/
