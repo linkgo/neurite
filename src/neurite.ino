@@ -191,11 +191,11 @@ static int otafs_over_http(const char *url)
 
 static void ticker_led_breath(void)
 {
-	static int val = 1023;
+	static int val = 700;
 	static int state = 0;
-	if (val >= 1023)
+	if (val >= 700)
 		state = 1;
-	else if (val <= 523)
+	else if (val <= 200)
 		state = 0;
 	else
 		;
@@ -208,9 +208,9 @@ static void ticker_led_breath(void)
 
 static void ticker_led_blink(void)
 {
-	static int val = 1023;
+	static int val = 700;
 	analogWrite(NEURITE_LED, val);
-	val = (val == 1023) ? 500 : 1023;
+	val = (val == 700) ? 200 : 700;
 }
 
 static bool cfg_get(const char *str, char *buf, size_t size)
