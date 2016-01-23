@@ -1071,6 +1071,20 @@ void neurite_user_mqtt(char *topic, byte *payload, unsigned int length)
 				digitalWrite(14, HIGH);
 		}
 	}
+	if (strcmp(topic, nd->cfg.topic_from) == 0) {
+		if (length >= 7 &&
+		    payload[0] == 'l' &&
+		    payload[1] == 'i' &&
+		    payload[2] == 'g' &&
+		    payload[3] == 'h' &&
+		    payload[4] == 't' &&
+		    payload[5] == ' ' &&
+		    payload[6] == 'o')
+			if (payload[7] == 'n')
+				digitalWrite(14, LOW);
+			else
+				digitalWrite(14, HIGH);
+	}
 }
 
 /* time_ms: the time delta in ms of button press/release cycle. */
@@ -1083,8 +1097,15 @@ void neurite_user_button(int time_ms)
 			static int val = 0;
 			char buf[4];
 			val = 1 - val;
+#if 0
 			sprintf(buf, "%d", val);
 			mqtt_cli.publish("/neuro/neurite-000c1636/io", (const char *)buf);
+#else
+			if (val)
+				mqtt_cli.publish("/neuro/chatroom", "light on");
+			else
+				mqtt_cli.publish("/neuro/chatroom", "light off");
+#endif
 		}
 	}
 }
