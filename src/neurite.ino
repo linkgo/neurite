@@ -155,6 +155,34 @@ static int ota_over_http(char *url)
 	return ret;
 }
 
+static int otafs_over_http(char *url)
+{
+	if (!url) {
+		log_err("invalid url\n\r");
+		return -1;
+	}
+	CMD_SERIAL.print("otafs: ");
+	CMD_SERIAL.println(url);
+
+	t_httpUpdate_return ret;
+	ret = ESPhttpUpdate.updateSpiffs(url);
+
+	switch (ret) {
+		case HTTP_UPDATE_FAILED:
+			log_err("failed\n\r");
+			break;
+
+		case HTTP_UPDATE_NO_UPDATES:
+			log_warn("no updates\n\r");
+			break;
+
+		case HTTP_UPDATE_OK:
+			log_info("ok\n\r");
+			break;
+	}
+	return ret;
+}
+
 static void ticker_led_breath(void)
 {
 	static int val = 1023;
@@ -349,6 +377,13 @@ static void mqtt_callback(char *topic, byte *payload, unsigned int length)
 			for (int i = 0; i < length; i++)
 				url[i] = payload[i];
 			ota_over_http(url);
+		} else if (strcmp(token, "otafs") == 0) {
+			log_dbg("hit otafs\n\r");
+			char url[MQTT_MSG_LEN];
+			__bzero(url, sizeof(url));
+			for (int i = 0; i < length; i++)
+				url[i] = payload[i];
+			otafs_over_http(url);
 		} else {
 			log_warn("unsupported %s, leave to user\n\r", token);
 		}
