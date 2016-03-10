@@ -1052,6 +1052,14 @@ Ticker ticker_user;
 void ticker_user_task(void)
 {
 	/* do something as in a periodically loop */
+#if 0
+	struct neurite_data_s *nd = &g_nd;
+	char buf[32];
+	__bzero(buf, sizeof(buf));
+	sprintf(buf, "adc: %d", analogRead(A0));
+	if (nd->mqtt_connected)
+		mqtt_cli.publish(nd->cfg.topic_to, (const char *)buf);
+#endif
 }
 
 /* called once on mqtt message received */
@@ -1091,7 +1099,7 @@ void neurite_user_mqtt(char *topic, byte *payload, unsigned int length)
 void neurite_user_button(int time_ms)
 {
 	struct neurite_data_s *nd = &g_nd;
-	if (time_ms >= 200) {
+	if (time_ms >= 50) {
 		/* do something on button event */
 		if (nd->mqtt_connected) {
 			static int val = 0;

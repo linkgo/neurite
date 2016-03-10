@@ -1,0 +1,400 @@
+From 288f16a1ebdd8916407236a035aabea7eca9bb04 Mon Sep 17 00:00:00 2001
+From: Librae <librae8226@gmail.com>
+Date: Thu, 10 Mar 2016 14:25:25 +0800
+Subject: [PATCH] enable debug for OTA
+
+---
+ cores/esp8266/Updater.cpp                          | 50 +++++++---------------
+ .../ESP8266httpUpdate/src/ESP8266httpUpdate.cpp    | 50 +++++++++++-----------
+ .../ESP8266httpUpdate/src/ESP8266httpUpdate.h      |  5 +++
+ 3 files changed, 45 insertions(+), 60 deletions(-)
+
+diff --git a/cores/esp8266/Updater.cpp b/cores/esp8266/Updater.cpp
+index e3d871e..2569e69 100755
+--- a/cores/esp8266/Updater.cpp
++++ b/cores/esp8266/Updater.cpp
+@@ -3,7 +3,9 @@
+ #include "eboot_command.h"
+ #include "interrupts.h"
+ 
+-//#define DEBUG_UPDATER Serial
++#ifndef DEBUG_UPDATER
++#define DEBUG_UPDATER Serial
++#endif
+ 
+ extern "C" {
+     #include "c_types.h"
+@@ -37,31 +39,23 @@ void UpdaterClass::_reset() {
+ 
+ bool UpdaterClass::begin(size_t size, int command) {
+   if(_size > 0){
+-#ifdef DEBUG_UPDATER
+     DEBUG_UPDATER.println("[begin] already running");
+-#endif
+     return false;
+   }
+ 
+-#ifdef DEBUG_UPDATER
+   if (command == U_SPIFFS) {
+     DEBUG_UPDATER.println("[begin] Update SPIFFS.");
+   }
+-#endif
+ 
+   if(size == 0) {
+     _error = UPDATE_ERROR_SIZE;
+-#ifdef DEBUG_UPDATER
+     printError(DEBUG_UPDATER);
+-#endif
+     return false;
+   }
+ 
+   if(!ESP.checkFlashConfig(false)) {
+     _error = UPDATE_ERROR_FLASH_CONFIG;
+-#ifdef DEBUG_UPDATER
+     printError(DEBUG_UPDATER);
+-#endif
+     return false;
+   }
+ 
+@@ -70,6 +64,8 @@ bool UpdaterClass::begin(size_t size, int command) {
+ 
+   wifi_set_sleep_type(NONE_SLEEP_T);
+ 
++  DEBUG_UPDATER.printf("target size: %u\n\r", size);
++
+   uint32_t updateStartAddress = 0;
+   if (command == U_FLASH) {
+     //size of current sketch rounded to a sector
+@@ -81,7 +77,7 @@ bool UpdaterClass::begin(size_t size, int command) {
+     //address where we will start writing the update
+     updateStartAddress = updateEndAddress - roundedSize;
+ 
+-#ifdef DEBUG_UPDATER
++#if 0
+         DEBUG_UPDATER.printf("[begin] roundedSize:       0x%08X (%d)\n", roundedSize, roundedSize);
+         DEBUG_UPDATER.printf("[begin] updateEndAddress:  0x%08X (%d)\n", updateEndAddress, updateEndAddress);
+         DEBUG_UPDATER.printf("[begin] currentSketchSize: 0x%08X (%d)\n", currentSketchSize, currentSketchSize);
+@@ -90,9 +86,7 @@ bool UpdaterClass::begin(size_t size, int command) {
+     //make sure that the size of both sketches is less than the total space (updateEndAddress)
+     if(updateStartAddress < currentSketchSize) {
+       _error = UPDATE_ERROR_SPACE;
+-#ifdef DEBUG_UPDATER
+       printError(DEBUG_UPDATER);
+-#endif
+       return false;
+     }
+   }
+@@ -101,9 +95,7 @@ bool UpdaterClass::begin(size_t size, int command) {
+   }
+   else {
+     // unknown command
+-#ifdef DEBUG_UPDATER
+     DEBUG_UPDATER.println("[begin] Unknown update command.");
+-#endif
+     return false;
+   }
+ 
+@@ -114,7 +106,7 @@ bool UpdaterClass::begin(size_t size, int command) {
+   _buffer = new uint8_t[FLASH_SECTOR_SIZE];
+   _command = command;
+ 
+-#ifdef DEBUG_UPDATER
++#if 0
+   DEBUG_UPDATER.printf("[begin] _startAddress:     0x%08X (%d)\n", _startAddress, _startAddress);
+   DEBUG_UPDATER.printf("[begin] _currentAddress:   0x%08X (%d)\n", _currentAddress, _currentAddress);
+   DEBUG_UPDATER.printf("[begin] _size:             0x%08X (%d)\n", _size, _size);
+@@ -135,14 +127,12 @@ bool UpdaterClass::setMD5(const char * expected_md5){
+ 
+ bool UpdaterClass::end(bool evenIfRemaining){
+   if(_size == 0){
+-#ifdef DEBUG_UPDATER
+     DEBUG_UPDATER.println("no update");
+-#endif
+     return false;
+   }
+ 
+   if(hasError() || (!isFinished() && !evenIfRemaining)){
+-#ifdef DEBUG_UPDATER
++#if 0
+     DEBUG_UPDATER.printf("premature end: res:%u, pos:%u/%u\n", getError(), progress(), _size);
+ #endif
+ 
+@@ -161,21 +151,19 @@ bool UpdaterClass::end(bool evenIfRemaining){
+   if(_target_md5.length()) {
+     if(_target_md5 != _md5.toString()){
+       _error = UPDATE_ERROR_MD5;
+-#ifdef DEBUG_UPDATER
++#if 0
+       DEBUG_UPDATER.printf("MD5 Failed: expected:%s, calculated:%s\n", _target_md5.c_str(), _md5.toString().c_str());
+ #endif
+       _reset();
+       return false;
+     }
+-#ifdef DEBUG_UPDATER
++#if 0
+     else DEBUG_UPDATER.printf("MD5 Success: %s\n", _target_md5.c_str());
+ #endif
+   }
+ 
+   if(!_verifyEnd()) {
+-#ifdef DEBUG_UPDATER
+     printError(DEBUG_UPDATER);
+-#endif
+     _reset();
+     return false;
+   }
+@@ -188,12 +176,10 @@ bool UpdaterClass::end(bool evenIfRemaining){
+     ebcmd.args[2] = _size;
+     eboot_command_write(&ebcmd);
+ 
+-#ifdef DEBUG_UPDATER
+-    DEBUG_UPDATER.printf("Staged: address:0x%08X, size:0x%08X\n", _startAddress, _size);
++    DEBUG_UPDATER.printf("Staged: address: 0x%08x, size: %u\n\r", _startAddress, _size);
+   }
+   else if (_command == U_SPIFFS) {
+-    DEBUG_UPDATER.printf("SPIFFS: address:0x%08X, size:0x%08X\n", _startAddress, _size);
+-#endif
++    DEBUG_UPDATER.printf("SPIFFS: address: 0x%08x, size: %u\n\r", _startAddress, _size);
+   }
+ 
+   _reset();
+@@ -203,7 +189,7 @@ bool UpdaterClass::end(bool evenIfRemaining){
+ bool UpdaterClass::_writeBuffer(){
+ 
+   yield();
+-  Serial.printf("write 0x%08x\n\r", _currentAddress);
++  DEBUG_UPDATER.printf("write 0x%08x\n\r", _currentAddress);
+   bool result = ESP.flashEraseSector(_currentAddress/FLASH_SECTOR_SIZE);
+   yield();
+   if (result) {
+@@ -214,9 +200,7 @@ bool UpdaterClass::_writeBuffer(){
+   if (!result) {
+     _error = UPDATE_ERROR_WRITE;
+     _currentAddress = (_startAddress + _size);
+-#ifdef DEBUG_UPDATER
+     printError(DEBUG_UPDATER);
+-#endif
+     return false;
+   }
+   _md5.add(_buffer, _bufferLen);
+@@ -312,9 +296,7 @@ size_t UpdaterClass::writeStream(Stream &data) {
+         return 0;
+ 
+     if(!_verifyHeader(data.peek())) {
+-#ifdef DEBUG_UPDATER
+         printError(DEBUG_UPDATER);
+-#endif
+         _reset();
+         return 0;
+     }
+@@ -327,9 +309,7 @@ size_t UpdaterClass::writeStream(Stream &data) {
+             if(toRead == 0) { //Timeout
+                 _error = UPDATE_ERROR_STREAM;
+                 _currentAddress = (_startAddress + _size);
+-#ifdef DEBUG_UPDATER
+                 printError(DEBUG_UPDATER);
+-#endif
+                 _reset();
+                 return written;
+             }
+@@ -362,9 +342,9 @@ void UpdaterClass::printError(Stream &out){
+   } else if(_error == UPDATE_ERROR_MD5){
+     out.println("MD5 Check Failed");
+   } else if(_error == UPDATE_ERROR_FLASH_CONFIG){
+-    out.printf("Flash config wrong real: %d IDE: %d\n", ESP.getFlashChipRealSize(), ESP.getFlashChipSize());
++    out.printf("Flash config wrong real: %d IDE: %d\n\r", ESP.getFlashChipRealSize(), ESP.getFlashChipSize());
+   } else if(_error == UPDATE_ERROR_NEW_FLASH_CONFIG){
+-    out.printf("new Flash config wrong real: %d\n", ESP.getFlashChipRealSize());
++    out.printf("new Flash config wrong real: %d\n\r", ESP.getFlashChipRealSize());
+   } else if(_error == UPDATE_ERROR_MAGIC_BYTE){
+     out.println("Magic byte is wrong, not 0xE9");
+   } else {
+diff --git a/libraries/ESP8266httpUpdate/src/ESP8266httpUpdate.cpp b/libraries/ESP8266httpUpdate/src/ESP8266httpUpdate.cpp
+index 5d2fb27..99cfd2a 100755
+--- a/libraries/ESP8266httpUpdate/src/ESP8266httpUpdate.cpp
++++ b/libraries/ESP8266httpUpdate/src/ESP8266httpUpdate.cpp
+@@ -178,28 +178,28 @@ t_httpUpdate_return ESP8266HTTPUpdate::handleUpdate(HTTPClient * http, const cha
+     int len = http->getSize();
+ 
+     if(code <= 0) {
+-        DEBUG_HTTP_UPDATE("[httpUpdate] HTTP error: %s\n", http->errorToString(code).c_str());
++        DEBUG_HTTP_UPDATE("[httpUpdate] HTTP error: %s\n\r", http->errorToString(code).c_str());
+         lastError = code;
+         http->end();
+         return HTTP_UPDATE_FAILED;
+     }
+ 
+ 
+-    DEBUG_HTTP_UPDATE("[httpUpdate] Header read fin.\n");
+-    DEBUG_HTTP_UPDATE("[httpUpdate] Server header:\n");
+-    DEBUG_HTTP_UPDATE("[httpUpdate]  - code: %d\n", code);
+-    DEBUG_HTTP_UPDATE("[httpUpdate]  - len: %d\n", len);
++    DEBUG_HTTP_UPDATE("[httpUpdate] Header read fin.\n\r");
++    DEBUG_HTTP_UPDATE("[httpUpdate] Server header:\n\r");
++    DEBUG_HTTP_UPDATE("[httpUpdate]  - code: %d\n\r", code);
++    DEBUG_HTTP_UPDATE("[httpUpdate]  - len: %d\n\r", len);
+ 
+     if(http->hasHeader("x-MD5")) {
+-        DEBUG_HTTP_UPDATE("[httpUpdate]  - MD5: %s\n", http->header("x-MD5").c_str());
++        DEBUG_HTTP_UPDATE("[httpUpdate]  - MD5: %s\n\r", http->header("x-MD5").c_str());
+     }
+ 
+-    DEBUG_HTTP_UPDATE("[httpUpdate] ESP8266 info:\n");
+-    DEBUG_HTTP_UPDATE("[httpUpdate]  - free Space: %d\n", ESP.getFreeSketchSpace());
+-    DEBUG_HTTP_UPDATE("[httpUpdate]  - current Sketch Size: %d\n", ESP.getSketchSize());
++    DEBUG_HTTP_UPDATE("[httpUpdate] ESP8266 info:\n\r");
++    DEBUG_HTTP_UPDATE("[httpUpdate]  - free Space: %d\n\r", ESP.getFreeSketchSpace());
++    DEBUG_HTTP_UPDATE("[httpUpdate]  - current Sketch Size: %d\n\r", ESP.getSketchSize());
+ 
+     if(current_version && current_version[0] != 0x00) {
+-        DEBUG_HTTP_UPDATE("[httpUpdate]  - current version: %s\n", current_version);
++        DEBUG_HTTP_UPDATE("[httpUpdate]  - current version: %s\n\r", current_version);
+     }
+ 
+     switch(code) {
+@@ -209,12 +209,12 @@ t_httpUpdate_return ESP8266HTTPUpdate::handleUpdate(HTTPClient * http, const cha
+                 if(spiffs) {
+                     size_t spiffsSize = ((size_t) &_SPIFFS_end - (size_t) &_SPIFFS_start);
+                     if(len > (int) spiffsSize) {
+-                        DEBUG_HTTP_UPDATE("[httpUpdate] spiffsSize to low (%d) needed: %d\n", spiffsSize, len);
++                        DEBUG_HTTP_UPDATE("[httpUpdate] spiffsSize to low (%d) needed: %d\n\r", spiffsSize, len);
+                         startUpdate = false;
+                     }
+                 } else {
+                     if(len > (int) ESP.getFreeSketchSpace()) {
+-                        DEBUG_HTTP_UPDATE("[httpUpdate] FreeSketchSpace to low (%d) needed: %d\n", ESP.getFreeSketchSpace(), len);
++                        DEBUG_HTTP_UPDATE("[httpUpdate] FreeSketchSpace to low (%d) needed: %d\n\r", ESP.getFreeSketchSpace(), len);
+                         startUpdate = false;
+                     }
+                 }
+@@ -235,16 +235,16 @@ t_httpUpdate_return ESP8266HTTPUpdate::handleUpdate(HTTPClient * http, const cha
+ 
+                     if(spiffs) {
+                         command = U_SPIFFS;
+-                        DEBUG_HTTP_UPDATE("[httpUpdate] runUpdate spiffs...\n");
++                        DEBUG_HTTP_UPDATE("[httpUpdate] runUpdate spiffs...\n\r");
+                     } else {
+                         command = U_FLASH;
+-                        DEBUG_HTTP_UPDATE("[httpUpdate] runUpdate flash...\n");
++                        DEBUG_HTTP_UPDATE("[httpUpdate] runUpdate flash...\n\r");
+                     }
+ 
+                     if(!spiffs) {
+                         uint8_t buf[4];
+                         if(tcp->peekBytes(&buf[0], 4) != 4) {
+-                            DEBUG_HTTP_UPDATE("[httpUpdate] peekBytes magic header failed\n");
++                            DEBUG_HTTP_UPDATE("[httpUpdate] peekBytes magic header failed\n\r");
+                             lastError = HTTP_UE_BIN_VERIFY_HEADER_FAILED;
+                             http->end();
+                             return HTTP_UPDATE_FAILED;
+@@ -252,7 +252,7 @@ t_httpUpdate_return ESP8266HTTPUpdate::handleUpdate(HTTPClient * http, const cha
+ 
+                         // check for valid first magic byte
+                         if(buf[0] != 0xE9) {
+-                            DEBUG_HTTP_UPDATE("[httpUpdate] magic header not starts with 0xE9\n");
++                            DEBUG_HTTP_UPDATE("[httpUpdate] magic header not starts with 0xE9\n\r");
+                             lastError = HTTP_UE_BIN_VERIFY_HEADER_FAILED;
+                             http->end();
+                             return HTTP_UPDATE_FAILED;
+@@ -263,7 +263,7 @@ t_httpUpdate_return ESP8266HTTPUpdate::handleUpdate(HTTPClient * http, const cha
+ 
+                         // check if new bin fits to SPI flash
+                         if(bin_flash_size > ESP.getFlashChipRealSize()) {
+-                            DEBUG_HTTP_UPDATE("[httpUpdate] magic header, new bin not fits SPI Flash\n");
++                            DEBUG_HTTP_UPDATE("[httpUpdate] magic header, new bin not fits SPI Flash\n\r");
+                             lastError = HTTP_UE_BIN_FOR_WRONG_FLASH;
+                             http->end();
+                             return HTTP_UPDATE_FAILED;
+@@ -272,7 +272,7 @@ t_httpUpdate_return ESP8266HTTPUpdate::handleUpdate(HTTPClient * http, const cha
+ 
+                     if(runUpdate(*tcp, len, http->header("x-MD5"), command)) {
+                         ret = HTTP_UPDATE_OK;
+-                        DEBUG_HTTP_UPDATE("[httpUpdate] Update ok\n");
++                        DEBUG_HTTP_UPDATE("[httpUpdate] Update ok\n\r");
+                         http->end();
+ 
+                         if(reboot) {
+@@ -281,13 +281,13 @@ t_httpUpdate_return ESP8266HTTPUpdate::handleUpdate(HTTPClient * http, const cha
+ 
+                     } else {
+                         ret = HTTP_UPDATE_FAILED;
+-                        DEBUG_HTTP_UPDATE("[httpUpdate] Update failed\n");
++                        DEBUG_HTTP_UPDATE("[httpUpdate] Update failed\n\r");
+                     }
+                 }
+             } else {
+                 lastError = HTTP_UE_SERVER_NOT_REPORT_SIZE;
+                 ret = HTTP_UPDATE_FAILED;
+-                DEBUG_HTTP_UPDATE("[httpUpdate] Content-Length is 0 or not set by Server?!\n");
++                DEBUG_HTTP_UPDATE("[httpUpdate] Content-Length is 0 or not set by Server?!\n\r");
+             }
+             break;
+         case HTTP_CODE_NOT_MODIFIED:
+@@ -305,7 +305,7 @@ t_httpUpdate_return ESP8266HTTPUpdate::handleUpdate(HTTPClient * http, const cha
+         default:
+             lastError = HTTP_UE_SERVER_WRONG_HTTP_CODE;
+             ret = HTTP_UPDATE_FAILED;
+-            DEBUG_HTTP_UPDATE("[httpUpdate] HTTP Code is (%d)\n", code);
++            DEBUG_HTTP_UPDATE("[httpUpdate] HTTP Code is (%d)\n\r", code);
+             //http->writeToStream(&Serial1);
+             break;
+     }
+@@ -329,14 +329,14 @@ bool ESP8266HTTPUpdate::runUpdate(Stream& in, uint32_t size, String md5, int com
+         lastError = Update.getError();
+         Update.printError(error);
+         error.trim(); // remove line ending
+-        DEBUG_HTTP_UPDATE("[httpUpdate] Update.begin failed! (%s)\n", error.c_str());
++        DEBUG_HTTP_UPDATE("[httpUpdate] Update.begin failed! (%s)\n\r", error.c_str());
+         return false;
+     }
+ 
+     if(md5.length()) {
+         if(!Update.setMD5(md5.c_str())) {
+             lastError = HTTP_UE_SERVER_FAULTY_MD5;
+-            DEBUG_HTTP_UPDATE("[httpUpdate] Update.setMD5 failed! (%s)\n", md5.c_str());
++            DEBUG_HTTP_UPDATE("[httpUpdate] Update.setMD5 failed! (%s)\n\r", md5.c_str());
+             return false;
+         }
+     }
+@@ -345,7 +345,7 @@ bool ESP8266HTTPUpdate::runUpdate(Stream& in, uint32_t size, String md5, int com
+         lastError = Update.getError();
+         Update.printError(error);
+         error.trim(); // remove line ending
+-        DEBUG_HTTP_UPDATE("[httpUpdate] Update.writeStream failed! (%s)\n", error.c_str());
++        DEBUG_HTTP_UPDATE("[httpUpdate] Update.writeStream failed! (%s)\n\r", error.c_str());
+         return false;
+     }
+ 
+@@ -353,7 +353,7 @@ bool ESP8266HTTPUpdate::runUpdate(Stream& in, uint32_t size, String md5, int com
+         lastError = Update.getError();
+         Update.printError(error);
+         error.trim(); // remove line ending
+-        DEBUG_HTTP_UPDATE("[httpUpdate] Update.end failed! (%s)\n", error.c_str());
++        DEBUG_HTTP_UPDATE("[httpUpdate] Update.end failed! (%s)\n\r", error.c_str());
+         return false;
+     }
+ 
+diff --git a/libraries/ESP8266httpUpdate/src/ESP8266httpUpdate.h b/libraries/ESP8266httpUpdate/src/ESP8266httpUpdate.h
+index 81f0338..c880d52 100755
+--- a/libraries/ESP8266httpUpdate/src/ESP8266httpUpdate.h
++++ b/libraries/ESP8266httpUpdate/src/ESP8266httpUpdate.h
+@@ -32,11 +32,16 @@
+ #include <WiFiUdp.h>
+ #include <ESP8266HTTPClient.h>
+ 
++#if 0
+ #ifdef DEBUG_ESP_HTTP_UPDATE
+ #ifdef DEBUG_ESP_PORT
+ #define DEBUG_HTTP_UPDATE(...) DEBUG_ESP_PORT.printf( __VA_ARGS__ )
+ #endif
+ #endif
++#else
++#define DEBUG_ESP_HTTP_UPDATE
++#define DEBUG_HTTP_UPDATE(...) Serial.printf( __VA_ARGS__ )
++#endif
+ 
+ #ifndef DEBUG_HTTP_UPDATE
+ #define DEBUG_HTTP_UPDATE(...)
+-- 
+2.4.1
+
