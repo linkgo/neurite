@@ -40,6 +40,7 @@
 #include <Ticker.h>
 #include <ArduinoJson.h>
 #include "FS.h"
+#include <Servo.h>
 
 extern "C" {
 #include "osapi.h"
@@ -109,6 +110,7 @@ static char cfg_buf[NEURITE_CFG_SIZE];
 
 ESP8266WebServer *server;
 File fsUploadFile;
+Servo myservo;
 
 static void reboot(struct neurite_data_s *nd);
 
@@ -1089,11 +1091,16 @@ void ticker_user_task(void)
 	/* do something as in a periodically loop */
 #if 0
 	struct neurite_data_s *nd = &g_nd;
-	char buf[32];
-	__bzero(buf, sizeof(buf));
-	sprintf(buf, "adc: %d", analogRead(A0));
-	if (nd->mqtt_connected)
-		mqtt_cli.publish(nd->cfg.topic_to, (const char *)buf);
+	static int adc_prev = 0;
+	int adc = analogRead(A0);
+	if (abs(adc - adc_prev) > 50) {
+		adc_prev = adc;
+		char buf[32];
+		__bzero(buf, sizeof(buf));
+		sprintf(buf, "adc: %d", analogRead(A0));
+		if (nd->mqtt_connected)
+			mqtt_cli.publish(nd->cfg.topic_to, (const char *)buf);
+	}
 #endif
 }
 
@@ -1128,6 +1135,25 @@ void neurite_user_mqtt(char *topic, byte *payload, unsigned int length)
 			else
 				digitalWrite(14, HIGH);
 	}
+	char *token = NULL;
+	char *msg = (char *)malloc(64);
+	__bzero(msg, sizeof(msg));
+	for (int i = 0; i < length; i++)
+		msg[i] = payload[i];
+	msg[length] = '\0';
+	token = strtok(msg, " ");
+	if (token == NULL) {
+		log_warn("no payload, ignore\n\r");
+	} else if (strcmp(token, "light:") == 0) {
+		int val = atoi(&msg[7]);
+		analogWrite(14, val);
+	} else if (strcmp(token, "servo:") == 0) {
+		int val = atoi(&msg[7]);
+		log_dbg("hit servo, msg(value): %s(%d)\n\r", &msg[7], val);
+		myservo.write(val);
+	} else {
+	}
+	free(msg);
 }
 
 /* time_ms: the time delta in ms of button press/release cycle. */
@@ -1150,6 +1176,35 @@ void neurite_user_button(int time_ms)
 				mqtt_cli.publish("/neuro/chatroom", "light off");
 #endif
 		}
+#if 0
+		/* some experiment */
+		WiFi.mode(WIFI_STA);
+		WiFi.disconnect();
+		delay(100);
+		Serial.println("setup done");
+		int n = WiFi.scanNetworks(false, true);
+		Serial.println("scan done");
+		if (n == 0)
+			Serial.println("no networks found");
+		else
+		{
+			Serial.print(n);
+			Serial.println(" networks found");
+			for (int i = 0; i < n; ++i)
+			{
+				// Print SSID and RSSI for each network found
+				Serial.print(i + 1);
+				Serial.print(": ");
+				Serial.print(WiFi.SSID(i));
+				Serial.print(" (");
+				Serial.print(WiFi.RSSI(i));
+				Serial.print(")");
+				Serial.println((WiFi.encryptionType(i) == ENC_TYPE_NONE)?" ":"*");
+				delay(10);
+			}
+		}
+		Serial.println("");
+#endif
 	}
 }
 
@@ -1157,8 +1212,9 @@ void neurite_user_button(int time_ms)
 void neurite_user_setup(void)
 {
 	log_dbg("called\n\r");
+	myservo.attach(13);
 	pinMode(14, OUTPUT);
 	digitalWrite(14, HIGH);
-	ticker_user.attach_ms(1000, ticker_user_task);
+	ticker_user.attach_ms(20, ticker_user_task);
 }
 #endif
