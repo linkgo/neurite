@@ -72,6 +72,10 @@ extern struct neurite_data_s g_nd;
 
 #define USER_LOOP_INTERVAL 1000
 
+Adafruit_BME280 bme;
+#define SEALEVELPRESSURE_HPA (1013.25)
+#define BME280_ADDR 0x76
+
 static bool b_user_loop_run = true;
 
 enum {
@@ -89,6 +93,37 @@ static inline void update_user_state(int st)
 void neurite_user_worker(void)
 {
 	/* add user stuff here */
+	struct neurite_data_s *nd = &g_nd;
+	char buf[32];
+	char topic_to[MQTT_TOPIC_LEN] = {0};
+	nd->cfg.get("topic_to", topic_to, MQTT_TOPIC_LEN);
+
+	int t = (int)(bme.readTemperature()*100);
+	int t_i = t/100;
+	int t_d = t%100;
+	__bzero(buf, sizeof(buf));
+	sprintf(buf, "temperature: %u.%02u'C", t_i, t_d);
+	log_dbg("%s\n\r", buf);
+	if (nd->mqtt_connected)
+		mqtt_cli.publish(topic_to, (const char *)buf);
+
+	int p = (int)(bme.readPressure());
+	int p_i = p/100;
+	int p_d = p%100;
+	__bzero(buf, sizeof(buf));
+	sprintf(buf, "pressure: %u.%02u hPa", p_i, p_d);
+	log_dbg("%s\n\r", buf);
+	if (nd->mqtt_connected)
+		mqtt_cli.publish(topic_to, (const char *)buf);
+
+	int h = (int)(bme.readHumidity()*100);
+	int h_i = h/100;
+	int h_d = h%100;
+	__bzero(buf, sizeof(buf));
+	sprintf(buf, "humidity: %u.%02u%%", h_i, h_d);
+	log_dbg("%s\n\r", buf);
+	if (nd->mqtt_connected)
+		mqtt_cli.publish(topic_to, (const char *)buf);
 }
 
 void neurite_user_loop(void)
@@ -124,6 +159,9 @@ void neurite_user_hold(void)
 void neurite_user_setup(void)
 {
 	log_dbg("\n\r");
+	log_dbg("called\n\r");
+	if (!bme.begin(BME280_ADDR))
+		log_err("Could not find a valid BME280 sensor, check wiring!\n\r");
 }
 
 /* called once on mqtt message received */
@@ -150,19 +188,13 @@ void neurite_user_button(int time_ms)
 	struct neurite_data_s *nd = &g_nd;
 	if (time_ms >= 50) {
 		/* do something on button event */
-		if (nd->mqtt_connected) {
-			static int val = 0;
-			char buf[4];
-			val = 1 - val;
-
-			char topic_to[MQTT_TOPIC_LEN] = {0};
-			nd->cfg.get("topic_to", topic_to, MQTT_TOPIC_LEN);
-
-			if (val)
-				mqtt_cli.publish(topic_to, "light on");
-			else
-				mqtt_cli.publish(topic_to, "light off");
-		}
+		static int val = 0;
+		char buf[4];
+		val = 1 - val;
+		if (val)
+			b_user_loop_run = true;
+		else
+			b_user_loop_run = false;
 	}
 }
 #endif

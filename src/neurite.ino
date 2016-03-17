@@ -43,6 +43,9 @@
 #include <Ticker.h>
 #include <ArduinoJson.h>
 #include "FS.h"
+#include <SPI.h>
+#include <Adafruit_Sensor.h>
+#include <Adafruit_BME280.h>
 
 extern "C" {
 #include "osapi.h"
@@ -1208,3 +1211,4 @@ void loop()
 		neurite_user_loop();
 #endif
 }
+
