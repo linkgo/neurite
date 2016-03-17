@@ -1116,9 +1116,9 @@ void neurite_user_mqtt(char *topic, byte *payload, unsigned int length)
 		if (strcmp(token, "io") == 0) {
 			log_dbg("hit io, payload: %c\n\r", payload[0]);
 			if (payload[0] == '0')
-				digitalWrite(14, LOW);
+				analogWrite(14, 0);
 			else
-				digitalWrite(14, HIGH);
+				analogWrite(14, 1023);
 		}
 	}
 	if (strcmp(topic, nd->cfg.topic_from) == 0) {
@@ -1131,9 +1131,9 @@ void neurite_user_mqtt(char *topic, byte *payload, unsigned int length)
 		    payload[5] == ' ' &&
 		    payload[6] == 'o')
 			if (payload[7] == 'n')
-				digitalWrite(14, LOW);
+				analogWrite(14, 0);
 			else
-				digitalWrite(14, HIGH);
+				analogWrite(14, 1023);
 	}
 	char *token = NULL;
 	char *msg = (char *)malloc(64);
@@ -1214,7 +1214,7 @@ void neurite_user_setup(void)
 	log_dbg("called\n\r");
 	myservo.attach(13);
 	pinMode(14, OUTPUT);
-	digitalWrite(14, HIGH);
+	analogWrite(14, 1023);
 	ticker_user.attach_ms(20, ticker_user_task);
 }
 #endif
