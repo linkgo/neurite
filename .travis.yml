@@ -5,7 +5,8 @@
 # ---------------------------------------------------------------------
 # [ 64  ] Json             http://platformio.org/#!/lib/show/64/Json
 # [ 89  ] PubSubClient     http://platformio.org/#!/lib/show/89/PubSubClient
-#
+# [ 34  ] Adafruit-TSL2561 http://platformio.org/lib/show/34/Adafruit-TSL2561-Unified
+# [ 166 ] Adafruit_BME280  http://platformio.org/lib/show/166/Adafruit_BME280
 
 language: python
 python:
@@ -18,7 +19,7 @@ env:
 - PLATFORMIO_CI_SRC=src
 install:
 - pip install -U platformio
-- platformio lib install 64 89
+- platformio lib install 34 64 89 166
 before_script:
 - mkdir -p ~/.platformio/boards/
 - cp platformio/boards/neurite.json ~/.platformio/boards/
