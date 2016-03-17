@@ -43,7 +43,9 @@
 #include <Ticker.h>
 #include <ArduinoJson.h>
 #include "FS.h"
-#include <Servo.h>
+#include <SPI.h>
+#include <Adafruit_Sensor.h>
+#include <Adafruit_BME280.h>
 
 extern "C" {
 #include "osapi.h"
@@ -1174,8 +1176,11 @@ void loop()
 #ifdef NEURITE_ENABLE_USER
 #define USER_LOOP_INTERVAL 1000
 
-Servo myservo;
-static bool b_user_loop_run = true;
+Adafruit_BME280 bme;
+#define SEALEVELPRESSURE_HPA (1013.25)
+#define BME280_ADDR 0x76
+
+static bool b_user_loop_run = false;
 
 enum {
 	USER_ST_0 = 0,
@@ -1192,19 +1197,35 @@ static inline void update_user_state(int st)
 void neurite_user_worker(void)
 {
 	/* add user stuff here */
-#if 0
 	struct neurite_data_s *nd = &g_nd;
-	static int adc_prev = 0;
-	int adc = analogRead(A0);
-	if (abs(adc - adc_prev) > 50) {
-		adc_prev = adc;
-		char buf[32];
-		__bzero(buf, sizeof(buf));
-		sprintf(buf, "adc: %d", analogRead(A0));
-		if (nd->mqtt_connected)
-			mqtt_cli.publish(nd->cfg.topic_to, (const char *)buf);
-	}
-#endif
+	char buf[32];
+
+	int t = (int)(bme.readTemperature()*100);
+	int t_i = t/100;
+	int t_d = t%100;
+	__bzero(buf, sizeof(buf));
+	sprintf(buf, "temperature: %u.%02u'C", t_i, t_d);
+	log_dbg("%s\n\r", buf);
+	if (nd->mqtt_connected)
+		mqtt_cli.publish(nd->cfg.topic_to, (const char *)buf);
+
+	int p = (int)(bme.readPressure());
+	int p_i = p/100;
+	int p_d = p%100;
+	__bzero(buf, sizeof(buf));
+	sprintf(buf, "pressure: %u.%02u hPa", p_i, p_d);
+	log_dbg("%s\n\r", buf);
+	if (nd->mqtt_connected)
+		mqtt_cli.publish(nd->cfg.topic_to, (const char *)buf);
+
+	int h = (int)(bme.readHumidity()*100);
+	int h_i = h/100;
+	int h_d = h%100;
+	__bzero(buf, sizeof(buf));
+	sprintf(buf, "humidity: %u.%02u%%", h_i, h_d);
+	log_dbg("%s\n\r", buf);
+	if (nd->mqtt_connected)
+		mqtt_cli.publish(nd->cfg.topic_to, (const char *)buf);
 }
 
 void neurite_user_loop(void)
@@ -1233,7 +1254,6 @@ void neurite_user_loop(void)
 void neurite_user_hold(void)
 {
 	log_dbg("\n\r");
-	myservo.detach();
 	update_user_state(USER_ST_0);
 }
 
@@ -1241,9 +1261,9 @@ void neurite_user_hold(void)
 void neurite_user_setup(void)
 {
 	log_dbg("\n\r");
-	pinMode(14, OUTPUT);
-	analogWrite(14, 1023);
-	myservo.attach(13);
+	log_dbg("called\n\r");
+	if (!bme.begin(BME280_ADDR))
+		log_err("Could not find a valid BME280 sensor, check wiring!\n\r");
 }
 
 /* called once on mqtt message received */
@@ -1257,52 +1277,10 @@ void neurite_user_mqtt(char *topic, byte *payload, unsigned int length)
 		/* check for something like: /neuro/neurite-000c1636/io */
 		if (strcmp(token, "io") == 0) {
 			log_dbg("hit io, payload: %c\n\r", payload[0]);
-			if (payload[0] == '0')
-				analogWrite(14, 0);
-			else
-				analogWrite(14, 1023);
 		}
 	}
 	if (strcmp(topic, nd->cfg.topic_from) == 0) {
-		if (length >= 7 &&
-		    payload[0] == 'l' &&
-		    payload[1] == 'i' &&
-		    payload[2] == 'g' &&
-		    payload[3] == 'h' &&
-		    payload[4] == 't' &&
-		    payload[5] == ' ' &&
-		    payload[6] == 'o')
-			if (payload[7] == 'n')
-				analogWrite(14, 0);
-			else
-				analogWrite(14, 1023);
 	}
-	char *token = NULL;
-	char *msg = (char *)malloc(MQTT_MSG_LEN);
-	__bzero(msg, sizeof(msg));
-	for (int i = 0; i < length; i++)
-		msg[i] = payload[i];
-	msg[length] = '\0';
-	token = strtok(msg, " ");
-	if (token == NULL) {
-		log_warn("no payload, ignore\n\r");
-	} else if (strcmp(token, "light:") == 0) {
-		token = strtok(NULL, "\0");
-		if (token) {
-			int val = atoi(token);
-			log_dbg("hit light, msg(value): %s(%d)\n\r", token, val);
-			analogWrite(14, val);
-		}
-	} else if (strcmp(token, "servo:") == 0) {
-		token = strtok(NULL, "\0");
-		if (token) {
-			int val = atoi(token);
-			log_dbg("hit servo, msg(value): %s(%d)\n\r", token, val);
-			myservo.write(val);
-		}
-	} else {
-	}
-	free(msg);
 }
 
 /* time_ms: the time delta in ms of button press/release cycle. */
@@ -1311,15 +1289,13 @@ void neurite_user_button(int time_ms)
 	struct neurite_data_s *nd = &g_nd;
 	if (time_ms >= 50) {
 		/* do something on button event */
-		if (nd->mqtt_connected) {
-			static int val = 0;
-			char buf[4];
-			val = 1 - val;
-			if (val)
-				mqtt_cli.publish("/neuro/chatroom", "light on");
-			else
-				mqtt_cli.publish("/neuro/chatroom", "light off");
-		}
+		static int val = 0;
+		char buf[4];
+		val = 1 - val;
+		if (val)
+			b_user_loop_run = true;
+		else
+			b_user_loop_run = false;
 	}
 }
 #endif
