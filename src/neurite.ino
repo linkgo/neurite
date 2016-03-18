@@ -1178,6 +1178,7 @@ void neurite_user_mqtt(char *topic, byte *payload, unsigned int length)
 		token = strtok(NULL, "\0");
 		if (token) {
 			int val = atoi(token);
+			log_dbg("hit light, msg(value): %s(%d)\n\r", token, val);
 			analogWrite(14, val);
 		}
 	} else if (strcmp(token, "servo:") == 0) {
