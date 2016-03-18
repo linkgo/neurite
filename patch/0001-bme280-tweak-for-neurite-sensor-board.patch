@@ -1,0 +1,25 @@
+From 15a5150f2a90252d38cce7f05898aaa8d268fd71 Mon Sep 17 00:00:00 2001
+From: Librae <librae8226@gmail.com>
+Date: Thu, 17 Mar 2016 19:15:07 +0800
+Subject: [PATCH] bme280: tweak for neurite sensor board
+
+---
+ Adafruit_BME280.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Adafruit_BME280.cpp b/Adafruit_BME280.cpp
+index 77dfcfc..944e471 100644
+--- a/Adafruit_BME280.cpp
++++ b/Adafruit_BME280.cpp
+@@ -43,7 +43,7 @@ bool Adafruit_BME280::begin(uint8_t a) {
+ 
+   if (_cs == -1) {
+     // i2c
+-    Wire.begin();
++    Wire.begin(12, 14);
+   } else {
+     digitalWrite(_cs, HIGH);
+     pinMode(_cs, OUTPUT);
+-- 
+2.4.1
+
