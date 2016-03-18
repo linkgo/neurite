@@ -76,6 +76,7 @@ Adafruit_BME280 bme;
 #define SEALEVELPRESSURE_HPA (1013.25)
 #define BME280_ADDR 0x76
 
+Adafruit_TSL2561_Unified tsl = Adafruit_TSL2561_Unified(TSL2561_ADDR_LOW, 12345);
 static bool b_user_loop_run = true;
 
 enum {
@@ -97,6 +98,15 @@ void neurite_user_worker(void)
 	char buf[32];
 	char topic_to[MQTT_TOPIC_LEN] = {0};
 	nd->cfg.get("topic_to", topic_to, MQTT_TOPIC_LEN);
+
+	sensors_event_t event;
+	if (!tsl.getEvent(&event))
+		event.light = -1;
+	__bzero(buf, sizeof(buf));
+	sprintf(buf, "light: %d lux", (int)event.light);
+	log_dbg("%s\n\r", buf);
+	if (nd->mqtt_connected)
+		mqtt_cli.publish(topic_to, (const char *)buf);
 
 	int t = (int)(bme.readTemperature()*100);
 	int t_i = t/100;
@@ -158,10 +168,19 @@ void neurite_user_hold(void)
 /* will be called after neurite system setup */
 void neurite_user_setup(void)
 {
-	log_dbg("\n\r");
 	log_dbg("called\n\r");
 	if (!bme.begin(BME280_ADDR))
 		log_err("Could not find a valid BME280 sensor, check wiring!\n\r");
+	if(!tsl.begin()) {
+		log_err("Ooops, no TSL2561 detected ... Check your wiring or I2C ADDR!");
+	} else {
+#if 0
+		sensor_t sensor;
+		tsl.getSensor(&sensor);
+#endif
+		tsl.enableAutoRange(true);
+		tsl.setIntegrationTime(TSL2561_INTEGRATIONTIME_13MS);
+	}
 }
 
 /* called once on mqtt message received */

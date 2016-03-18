@@ -1,0 +1,25 @@
+From 043cfdc1391eeae5467fabe9cce52ca676e98378 Mon Sep 17 00:00:00 2001
+From: Librae <librae8226@gmail.com>
+Date: Fri, 18 Mar 2016 15:42:20 +0800
+Subject: [PATCH] tsl2561: tweak for neurite sensor
+
+---
+ Adafruit_TSL2561_U.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Adafruit_TSL2561_U.cpp b/Adafruit_TSL2561_U.cpp
+index 0517185..157571a 100644
+--- a/Adafruit_TSL2561_U.cpp
++++ b/Adafruit_TSL2561_U.cpp
+@@ -195,7 +195,7 @@ Adafruit_TSL2561_Unified::Adafruit_TSL2561_Unified(uint8_t addr, int32_t sensorI
+ /**************************************************************************/
+ boolean Adafruit_TSL2561_Unified::begin(void) 
+ {
+-  Wire.begin();
++  Wire.begin(12, 14);
+ 
+   /* Make sure we're actually connected */
+   uint8_t x = read8(TSL2561_REGISTER_ID);
+-- 
+2.4.1
+

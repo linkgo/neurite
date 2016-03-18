@@ -46,6 +46,7 @@
 #include <SPI.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
+#include <Adafruit_TSL2561_U.h>
 
 extern "C" {
 #include "osapi.h"
@@ -1211,4 +1212,3 @@ void loop()
 		neurite_user_loop();
 #endif
 }
-
