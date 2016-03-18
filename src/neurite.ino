@@ -110,7 +110,6 @@ static char cfg_buf[NEURITE_CFG_SIZE];
 
 ESP8266WebServer *server;
 File fsUploadFile;
-Servo myservo;
 
 static void reboot(struct neurite_data_s *nd);
 
@@ -129,6 +128,30 @@ static inline void update_worker_state(int st)
 	worker_st = st;
 }
 
+static void ota_hold(void)
+{
+	struct neurite_data_s *nd = &g_nd;
+#ifdef NEURITE_ENABLE_USER
+	neurite_user_hold();
+#endif
+	stop_ticker_but(nd);
+	stop_ticker_mon(nd);
+	stop_ticker_led(nd);
+	stop_ticker_cmd(nd);
+}
+
+static void ota_release(void)
+{
+	struct neurite_data_s *nd = &g_nd;
+	start_ticker_cmd(nd);
+	start_ticker_led_breath(nd);
+	start_ticker_mon(nd);
+	start_ticker_but(nd);
+#ifdef NEURITE_ENABLE_USER
+	neurite_user_setup();
+#endif
+}
+
 static int ota_over_http(char *url)
 {
 	if (!url) {
@@ -138,6 +161,7 @@ static int ota_over_http(char *url)
 	CMD_SERIAL.print("ota: ");
 	CMD_SERIAL.println(url);
 
+	ota_hold();
 	t_httpUpdate_return ret;
 	ret = ESPhttpUpdate.update(url);
 
@@ -154,6 +178,7 @@ static int ota_over_http(char *url)
 			log_info("ok\n\r");
 			break;
 	}
+	ota_release();
 	return ret;
 }
 
@@ -166,6 +191,7 @@ static int otafs_over_http(char *url)
 	CMD_SERIAL.print("otafs: ");
 	CMD_SERIAL.println(url);
 
+	ota_hold();
 	t_httpUpdate_return ret;
 	ret = ESPhttpUpdate.updateSpiffs(url);
 
@@ -182,6 +208,7 @@ static int otafs_over_http(char *url)
 			log_info("ok\n\r");
 			break;
 	}
+	ota_release();
 	return ret;
 }
 
@@ -484,50 +511,43 @@ static void ticker_button_task(struct neurite_data_s *nd)
 	}
 }
 
-static inline void stop_ticker_led(struct neurite_data_s *nd)
+inline void stop_ticker_led(struct neurite_data_s *nd)
 {
 	ticker_led.detach();
 }
-static inline void start_ticker_led_breath(struct neurite_data_s *nd)
+inline void start_ticker_led_breath(struct neurite_data_s *nd)
 {
 	stop_ticker_led(nd);
 	ticker_led.attach_ms(50, ticker_led_breath);
 }
-
-static inline void start_ticker_led_blink(struct neurite_data_s *nd)
+inline void start_ticker_led_blink(struct neurite_data_s *nd)
 {
 	stop_ticker_led(nd);
 	ticker_led.attach_ms(50, ticker_led_blink);
 }
-
-static inline void stop_ticker_mon(struct neurite_data_s *nd)
+inline void stop_ticker_mon(struct neurite_data_s *nd)
 {
 	ticker_mon.detach();
 }
-
-static inline void start_ticker_mon(struct neurite_data_s *nd)
+inline void start_ticker_mon(struct neurite_data_s *nd)
 {
 	stop_ticker_mon(nd);
 	ticker_mon.attach_ms(100, ticker_monitor_task, nd);
 }
-
-static inline void stop_ticker_worker(struct neurite_data_s *nd)
+inline void stop_ticker_worker(struct neurite_data_s *nd)
 {
 	ticker_worker.detach();
 }
-
-static inline void start_ticker_worker(struct neurite_data_s *nd)
+inline void start_ticker_worker(struct neurite_data_s *nd)
 {
 	stop_ticker_worker(nd);
 	ticker_worker.attach(1, ticker_worker_task);
 }
-
-static inline void stop_ticker_but(struct neurite_data_s *nd)
+inline void stop_ticker_but(struct neurite_data_s *nd)
 {
 	ticker_but.detach();
 }
-
-static inline void start_ticker_but(struct neurite_data_s *nd)
+inline void start_ticker_but(struct neurite_data_s *nd)
 {
 	stop_ticker_but(nd);
 	ticker_but.attach_ms(50, ticker_button_task, nd);
@@ -582,12 +602,12 @@ static void ticker_cmd_task(struct neurite_data_s *nd)
 	cmd_parse_byte(nd->cp, c);
 }
 
-static inline void stop_ticker_cmd(struct neurite_data_s *nd)
+inline void stop_ticker_cmd(struct neurite_data_s *nd)
 {
 	ticker_cmd.detach();
 }
 
-static void start_ticker_cmd(struct neurite_data_s *nd)
+inline void start_ticker_cmd(struct neurite_data_s *nd)
 {
 	stop_ticker_cmd(nd);
 	ticker_cmd.attach_ms(1, ticker_cmd_task, nd);
@@ -957,13 +977,8 @@ inline void neurite_worker(void)
 			update_worker_state(WORKER_ST_2);
 			break;
 		case WORKER_ST_2:
-			if (digitalRead(NEURITE_BUTTON) == LOW) {
-				stop_ticker_led(nd);
-				stop_ticker_but(nd);
+			if (digitalRead(NEURITE_BUTTON) == LOW)
 				ota_over_http(OTA_URL_DEFAULT);
-				start_ticker_but(nd);
-				start_ticker_led_blink(nd);
-			}
 			mqtt_config(nd);
 			update_worker_state(WORKER_ST_3);
 			break;
@@ -1091,6 +1106,8 @@ void loop()
 
 #define USER_LOOP_INTERVAL 1000
 static bool b_user_loop_run = false;
+
+Servo myservo;
 
 void neurite_user_loop(void)
 {
@@ -1222,10 +1239,17 @@ void neurite_user_button(int time_ms)
 	}
 }
 
+/* called on critical neurite behavior such as OTA */
+void neurite_user_hold(void)
+{
+	log_dbg("\n\r");
+	myservo.detach();
+}
+
 /* will be called after neurite system setup */
 void neurite_user_setup(void)
 {
-	log_dbg("called\n\r");
+	log_dbg("\n\r");
 	myservo.attach(13);
 	pinMode(14, OUTPUT);
 	analogWrite(14, 1023);
