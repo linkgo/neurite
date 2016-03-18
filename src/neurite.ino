@@ -431,6 +431,7 @@ static void ticker_monitor_task(struct neurite_data_s *nd)
 	}
 }
 
+/* FIXME is this necessary? */
 static void ticker_worker_task(void)
 {
 #if 0
@@ -983,7 +984,7 @@ inline void neurite_worker(void)
 			mqtt_cli.publish(nd->cfg.topic_to, (const char *)payload_buf);
 
 			start_ticker_led_breath(nd);
-			start_ticker_worker(nd);
+			//start_ticker_worker(nd);
 			start_ticker_mon(nd);
 			CMD_SERIAL.println(FPSTR(STR_READY));
 			log_dbg("heap free: %d\n\r", ESP.getFreeHeap());
@@ -1066,6 +1067,9 @@ void loop()
 		neurite_worker();
 	else
 		neurite_cfg_worker();
+#ifdef NEURITE_ENABLE_USER
+	neurite_user_loop();
+#endif
 }
 
 /*
@@ -1084,11 +1088,20 @@ void loop()
  */
 
 #ifdef NEURITE_ENABLE_USER
-Ticker ticker_user;
 
-void ticker_user_task(void)
+#define USER_LOOP_INTERVAL 1000
+static bool b_user_loop_run = false;
+
+void neurite_user_loop(void)
 {
+	static uint32_t prev_time = 0;
+	if (b_user_loop_run == false)
+		return;
 	/* do something as in a periodically loop */
+	if ((millis() - prev_time) < USER_LOOP_INTERVAL)
+		return;
+	else
+		prev_time = millis();
 #if 0
 	struct neurite_data_s *nd = &g_nd;
 	static int adc_prev = 0;
@@ -1136,7 +1149,7 @@ void neurite_user_mqtt(char *topic, byte *payload, unsigned int length)
 				analogWrite(14, 1023);
 	}
 	char *token = NULL;
-	char *msg = (char *)malloc(64);
+	char *msg = (char *)malloc(MQTT_MSG_LEN);
 	__bzero(msg, sizeof(msg));
 	for (int i = 0; i < length; i++)
 		msg[i] = payload[i];
@@ -1145,12 +1158,18 @@ void neurite_user_mqtt(char *topic, byte *payload, unsigned int length)
 	if (token == NULL) {
 		log_warn("no payload, ignore\n\r");
 	} else if (strcmp(token, "light:") == 0) {
-		int val = atoi(&msg[7]);
-		analogWrite(14, val);
+		token = strtok(NULL, "\0");
+		if (token) {
+			int val = atoi(token);
+			analogWrite(14, val);
+		}
 	} else if (strcmp(token, "servo:") == 0) {
-		int val = atoi(&msg[7]);
-		log_dbg("hit servo, msg(value): %s(%d)\n\r", &msg[7], val);
-		myservo.write(val);
+		token = strtok(NULL, "\0");
+		if (token) {
+			int val = atoi(token);
+			log_dbg("hit servo, msg(value): %s(%d)\n\r", token, val);
+			myservo.write(val);
+		}
 	} else {
 	}
 	free(msg);
@@ -1166,15 +1185,10 @@ void neurite_user_button(int time_ms)
 			static int val = 0;
 			char buf[4];
 			val = 1 - val;
-#if 0
-			sprintf(buf, "%d", val);
-			mqtt_cli.publish("/neuro/neurite-000c1636/io", (const char *)buf);
-#else
 			if (val)
 				mqtt_cli.publish("/neuro/chatroom", "light on");
 			else
 				mqtt_cli.publish("/neuro/chatroom", "light off");
-#endif
 		}
 #if 0
 		/* some experiment */
@@ -1215,6 +1229,5 @@ void neurite_user_setup(void)
 	myservo.attach(13);
 	pinMode(14, OUTPUT);
 	analogWrite(14, 1023);
-	ticker_user.attach_ms(20, ticker_user_task);
 }
 #endif
