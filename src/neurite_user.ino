@@ -72,12 +72,12 @@ extern struct neurite_data_s g_nd;
 
 #define USER_LOOP_INTERVAL 1000
 
+Adafruit_TSL2561_Unified tsl = Adafruit_TSL2561_Unified(TSL2561_ADDR_LOW, 12345);
 Adafruit_BME280 bme;
 #define SEALEVELPRESSURE_HPA (1013.25)
 #define BME280_ADDR 0x76
 
-Adafruit_TSL2561_Unified tsl = Adafruit_TSL2561_Unified(TSL2561_ADDR_LOW, 12345);
-static bool b_user_loop_run = true;
+static bool b_user_loop_run = false;
 
 enum {
 	USER_ST_0 = 0,
@@ -165,24 +165,6 @@ void neurite_user_hold(void)
 	update_user_state(USER_ST_0);
 }
 
-/* will be called after neurite system setup */
-void neurite_user_setup(void)
-{
-	log_dbg("called\n\r");
-	if (!bme.begin(BME280_ADDR))
-		log_err("Could not find a valid BME280 sensor, check wiring!\n\r");
-	if(!tsl.begin()) {
-		log_err("Ooops, no TSL2561 detected ... Check your wiring or I2C ADDR!");
-	} else {
-#if 0
-		sensor_t sensor;
-		tsl.getSensor(&sensor);
-#endif
-		tsl.enableAutoRange(true);
-		tsl.setIntegrationTime(TSL2561_INTEGRATIONTIME_13MS);
-	}
-}
-
 /* called once on mqtt message received */
 void neurite_user_mqtt(char *topic, byte *payload, unsigned int length)
 {
@@ -214,6 +196,24 @@ void neurite_user_button(int time_ms)
 			b_user_loop_run = true;
 		else
 			b_user_loop_run = false;
+	}
+}
+
+/* will be called after neurite system setup */
+void neurite_user_setup(void)
+{
+	log_dbg("called\n\r");
+	if (!bme.begin(BME280_ADDR))
+		log_err("Could not find a valid BME280 sensor, check wiring!\n\r");
+	if(!tsl.begin()) {
+		log_err("Ooops, no TSL2561 detected ... Check your wiring or I2C ADDR!");
+	} else {
+#if 0
+		sensor_t sensor;
+		tsl.getSensor(&sensor);
+#endif
+		tsl.enableAutoRange(true);
+		tsl.setIntegrationTime(TSL2561_INTEGRATIONTIME_13MS);
 	}
 }
 #endif
