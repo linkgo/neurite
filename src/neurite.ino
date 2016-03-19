@@ -1255,7 +1255,7 @@ void neurite_user_worker(void)
 	if (!tsl.getEvent(&event))
 		event.light = -1;
 	__bzero(buf, sizeof(buf));
-	sprintf(buf, "light: %d lux", (int)event.light);
+	sprintf(buf, "ligh: %d lux", (int)event.light);
 	log_dbg("%s\n\r", buf);
 	if (nd->mqtt_connected)
 		mqtt_cli.publish(nd->cfg.topic_to, (const char *)buf);
@@ -1264,7 +1264,7 @@ void neurite_user_worker(void)
 	int t_i = t/100;
 	int t_d = t%100;
 	__bzero(buf, sizeof(buf));
-	sprintf(buf, "temperature: %u.%02u'C", t_i, t_d);
+	sprintf(buf, "temp: %u.%02u'C", t_i, t_d);
 	log_dbg("%s\n\r", buf);
 	if (nd->mqtt_connected)
 		mqtt_cli.publish(nd->cfg.topic_to, (const char *)buf);
@@ -1273,7 +1273,7 @@ void neurite_user_worker(void)
 	int p_i = p/100;
 	int p_d = p%100;
 	__bzero(buf, sizeof(buf));
-	sprintf(buf, "pressure: %u.%02u hPa", p_i, p_d);
+	sprintf(buf, "pres: %u.%02u hPa", p_i, p_d);
 	log_dbg("%s\n\r", buf);
 	if (nd->mqtt_connected)
 		mqtt_cli.publish(nd->cfg.topic_to, (const char *)buf);
@@ -1282,7 +1282,7 @@ void neurite_user_worker(void)
 	int h_i = h/100;
 	int h_d = h%100;
 	__bzero(buf, sizeof(buf));
-	sprintf(buf, "humidity: %u.%02u%%", h_i, h_d);
+	sprintf(buf, "humi: %u.%02u%%", h_i, h_d);
 	log_dbg("%s\n\r", buf);
 	if (nd->mqtt_connected)
 		mqtt_cli.publish(nd->cfg.topic_to, (const char *)buf);
