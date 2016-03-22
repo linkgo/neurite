@@ -1247,6 +1247,18 @@ void neurite_user_worker(void)
 	log_dbg("%s\n\r", buf);
 	if (nd->mqtt_connected)
 		mqtt_cli.publish(nd->cfg.topic_to, (const char *)buf);
+#if 0
+	int ac = (256 * __read8(0x55, 0x15) + __read8(0x55, 0x14)) * 357 / 2000;
+	int volt = 256 * __read8(0x55, 0x09) + __read8(0x55, 0x08);
+	int temp = (25 * (256 * __read8(0x55, 0x07) + __read8(0x55, 0x06)) - 27315)/100;
+	int sae = (256 * __read8(0x55, 0x23) + __read8(0x55, 0x22)) * 292 / 200;
+	int tte = 256 * __read8(0x55, 0x17) + __read8(0x55, 0x16);
+	__bzero(buf, sizeof(buf));
+	sprintf(buf, "ac: %d, volt: %d, temp: %d, sae: %d, tte: %d", ac, volt, temp, sae, tte);
+	log_dbg("%s\n\r", buf);
+	if (nd->mqtt_connected)
+		mqtt_cli.publish(nd->cfg.topic_to, (const char *)buf);
+#endif
 }
 
 void neurite_user_loop(void)
@@ -1311,10 +1323,33 @@ void neurite_user_button(int time_ms)
 	}
 }
 
+#if 0
+void static __write8(uint8_t _addr, uint8_t reg, uint32_t value)
+{
+	Wire.beginTransmission(_addr);
+	Wire.write(reg);
+	Wire.write(value & 0xFF);
+	Wire.endTransmission();
+}
+
+uint8_t static __read8(uint8_t _addr, uint8_t reg)
+{
+	Wire.beginTransmission(_addr);
+	Wire.write(reg);
+	Wire.endTransmission();
+	Wire.requestFrom(_addr, 1);
+	return Wire.read();
+}
+#endif
+
 /* will be called after neurite system setup */
 void neurite_user_setup(void)
 {
 	log_dbg("called\n\r");
+#if 0
+	Wire.begin(12, 14);
+	log_dbg("0x0a: 0x%02x\n\r", __read8(0x55, 0x0a));
+#endif
 	if (!bme.begin(BME280_ADDR))
 		log_err("Could not find a valid BME280 sensor, check wiring!\n\r");
 	if(!tsl.begin()) {
