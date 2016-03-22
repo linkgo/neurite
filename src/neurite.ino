@@ -401,7 +401,7 @@ static void mqtt_callback(char *topic, byte *payload, unsigned int length)
 		token = strtok(subtopic, "/");
 		if (token == NULL) {
 			log_warn("no subtopic, ignore\n\r");
-		} else if (strcmp(token, "config") == 0) {
+		} else if (strcmp(token, "cfg") == 0) {
 			log_dbg("hit config\n\r");
 		} else if (strcmp(token, "ota") == 0) {
 			log_dbg("hit ota\n\r");
@@ -642,8 +642,10 @@ static void cfg_init(struct neurite_data_s *nd)
 	log_dbg("uid: %s\n\r", nd->uid);
 	sprintf(nd->topic_private, "%s/%s/#", TOPIC_HEADER, nd->uid);
 	log_dbg("topic_private: %s\n\r", nd->topic_private);
-	sprintf(nd->cfg.topic_to, "%s", TOPIC_TO_DEFAULT);
-	sprintf(nd->cfg.topic_from, "%s", TOPIC_FROM_DEFAULT);
+	sprintf(nd->cfg.topic_to, "%s/%s/out", TOPIC_HEADER, nd->uid);
+	log_dbg("topic_to: %s\n\r", nd->cfg.topic_to);
+	sprintf(nd->cfg.topic_from, "%s/%s/in", TOPIC_HEADER, nd->uid);
+	log_dbg("topic_from: %s\n\r", nd->cfg.topic_from);
 	sprintf(nd->cfg.ssid, "%s", SSID1);
 	sprintf(nd->cfg.psk, "%s", PSK1);
 }
