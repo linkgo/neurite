@@ -147,9 +147,6 @@ static void ota_release(void)
 	start_ticker_led_breath(nd);
 	start_ticker_mon(nd);
 	start_ticker_but(nd);
-#ifdef NEURITE_ENABLE_USER
-	neurite_user_setup();
-#endif
 }
 
 static int ota_over_http(char *url)
@@ -874,6 +871,7 @@ static void handleSave(void)
 	server->send(200, "text/plain", message);
 	/* TODO reboot on save success */
 	log_dbg("out ok\n\r");
+	reboot(nd);
 	return;
 err_handle_save:
 	message += "Bad request\n";
@@ -1071,9 +1069,6 @@ void setup()
 	log_dbg("sketch free: %d\n\r", ESP.getFreeSketchSpace());
 
 	neurite_init();
-#ifdef NEURITE_ENABLE_USER
-	neurite_user_setup();
-#endif
 }
 
 void loop()
@@ -1083,7 +1078,8 @@ void loop()
 	else
 		neurite_cfg_worker();
 #ifdef NEURITE_ENABLE_USER
-	neurite_user_loop();
+	if (worker_st == WORKER_ST_4)
+		neurite_user_loop();
 #endif
 }
 
@@ -1103,22 +1099,26 @@ void loop()
  */
 
 #ifdef NEURITE_ENABLE_USER
-
 #define USER_LOOP_INTERVAL 1000
-static bool b_user_loop_run = false;
 
 Servo myservo;
+static bool b_user_loop_run = true;
 
-void neurite_user_loop(void)
+enum {
+	USER_ST_0 = 0,
+	USER_ST_1,
+};
+static int user_st = USER_ST_0;
+
+static inline void update_user_state(int st)
 {
-	static uint32_t prev_time = 0;
-	if (b_user_loop_run == false)
-		return;
-	/* do something as in a periodically loop */
-	if ((millis() - prev_time) < USER_LOOP_INTERVAL)
-		return;
-	else
-		prev_time = millis();
+	log_dbg("-> USER_ST_%d\n\r", st);
+	user_st = st;
+}
+
+void neurite_user_worker(void)
+{
+	/* add user stuff here */
 #if 0
 	struct neurite_data_s *nd = &g_nd;
 	static int adc_prev = 0;
@@ -1132,6 +1132,45 @@ void neurite_user_loop(void)
 			mqtt_cli.publish(nd->cfg.topic_to, (const char *)buf);
 	}
 #endif
+}
+
+void neurite_user_loop(void)
+{
+	static uint32_t prev_time = 0;
+	if (b_user_loop_run == false)
+		return;
+	if ((millis() - prev_time) < USER_LOOP_INTERVAL)
+		return;
+	prev_time = millis();
+	switch (user_st) {
+		case USER_ST_0:
+			neurite_user_setup();
+			update_user_state(USER_ST_1);
+			break;
+		case USER_ST_1:
+			neurite_user_worker();
+			break;
+		default:
+			log_err("unknown user state: %d\n\r", user_st);
+			break;
+	}
+}
+
+/* called on critical neurite behavior such as OTA */
+void neurite_user_hold(void)
+{
+	log_dbg("\n\r");
+	myservo.detach();
+	update_user_state(USER_ST_0);
+}
+
+/* will be called after neurite system setup */
+void neurite_user_setup(void)
+{
+	log_dbg("\n\r");
+	pinMode(14, OUTPUT);
+	analogWrite(14, 1023);
+	myservo.attach(13);
 }
 
 /* called once on mqtt message received */
@@ -1240,19 +1279,4 @@ void neurite_user_button(int time_ms)
 	}
 }
 
-/* called on critical neurite behavior such as OTA */
-void neurite_user_hold(void)
-{
-	log_dbg("\n\r");
-	myservo.detach();
-}
-
-/* will be called after neurite system setup */
-void neurite_user_setup(void)
-{
-	log_dbg("\n\r");
-	myservo.attach(13);
-	pinMode(14, OUTPUT);
-	analogWrite(14, 1023);
-}
 #endif
