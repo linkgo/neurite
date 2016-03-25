@@ -45,8 +45,8 @@
 //#define NEURITE_ENABLE_WIFIMULTI
 #define NEURITE_ENABLE_SERVER /* typical for dev only */
 #define NEURITE_ENABLE_MDNS
-#define NEURITE_ENABLE_USER
-#define NEURITE_BUILD_DEV
+//#define NEURITE_ENABLE_USER
+//#define NEURITE_BUILD_DEV
 
 /*
  * Log
