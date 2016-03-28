@@ -1216,15 +1216,6 @@ void loop()
 #ifdef NEURITE_ENABLE_USER
 #define USER_LOOP_INTERVAL 1000
 
-enum {
-	USER_ST_0 = 0,
-	USER_ST_1,
-	USER_ST_2,
-	USER_ST_3,
-	USER_ST_4
-};
-static int user_st = USER_ST_0;
-static bool b_user_loop_run = false;
 
 Adafruit_TSL2561_Unified tsl = Adafruit_TSL2561_Unified(TSL2561_ADDR_LOW, 12345);
 Adafruit_BME280 bme;
