@@ -211,7 +211,7 @@ void neurite_user_button(int time_ms)
 	}
 }
 
-#if 0
+#if 1
 void static __write8(uint8_t _addr, uint8_t reg, uint32_t value)
 {
 	Wire.beginTransmission(_addr);
@@ -234,7 +234,7 @@ uint8_t static __read8(uint8_t _addr, uint8_t reg)
 void neurite_user_setup(void)
 {
 	log_dbg("called\n\r");
-#if 0
+#if 1
 	Wire.begin(12, 14);
 	log_dbg("0x0a: 0x%02x\n\r", __read8(0x55, 0x0a));
 #endif
