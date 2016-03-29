@@ -1071,7 +1071,7 @@ inline void neurite_worker(void)
 			char payload_buf[32];
 			dbg_assert(payload_buf);
 			sprintf(payload_buf, "checkin: %s", nd->uid);
-			mqtt_cli.publish(nd->cfg.topic_to, (const char *)payload_buf);
+			mqtt_cli.publish("/neuro/chatroom", (const char *)payload_buf);
 
 			start_ticker_led_breath(nd);
 			//start_ticker_worker(nd);
@@ -1239,7 +1239,7 @@ void neurite_user_worker(void)
 	log_dbg("%s\n\r", buf);
 	if (nd->mqtt_connected)
 		mqtt_cli.publish(nd->cfg.topic_to, (const char *)buf);
-#if 0
+#if 1
 	int ac = (256 * __read8(0x55, 0x15) + __read8(0x55, 0x14)) * 357 / 2000;
 	int volt = 256 * __read8(0x55, 0x09) + __read8(0x55, 0x08);
 	int temp = (25 * (256 * __read8(0x55, 0x07) + __read8(0x55, 0x06)) - 27315)/100;
@@ -1315,7 +1315,7 @@ void neurite_user_button(int time_ms)
 	}
 }
 
-#if 0
+#if 1
 void static __write8(uint8_t _addr, uint8_t reg, uint32_t value)
 {
 	Wire.beginTransmission(_addr);
@@ -1338,7 +1338,7 @@ uint8_t static __read8(uint8_t _addr, uint8_t reg)
 void neurite_user_setup(void)
 {
 	log_dbg("called\n\r");
-#if 0
+#if 1
 	Wire.begin(12, 14);
 	log_dbg("0x0a: 0x%02x\n\r", __read8(0x55, 0x0a));
 #endif
