@@ -36,6 +36,9 @@
 #ifdef NEURITE_ENABLE_MDNS
 #include <ESP8266mDNS.h>
 #endif
+#ifdef NEURITE_ENABLE_DNSPORTAL
+#include <DNSServer.h>
+#endif
 #include <PubSubClient.h>
 #include <Ticker.h>
 #include <ArduinoJson.h>
@@ -663,6 +666,10 @@ static void cfg_init(struct neurite_data_s *nd)
 
 static void handleNotFound(void)
 {
+#ifdef NEURITE_ENABLE_DNSPORTAL
+	if (!handleFileRead("/index.html"))
+		server->send(404, "text/plain", "FileNotFound");
+#else
 	if (!handleFileRead(server->uri())) {
 		String message = "File Not Found\n\n";
 		message += "URI: ";
@@ -677,6 +684,7 @@ static void handleNotFound(void)
 		}
 		server->send(404, "text/plain", message);
 	}
+#endif
 }
 
 static String formatBytes(size_t bytes)
@@ -921,17 +929,21 @@ static inline void update_cfg_state(int st)
 #ifdef NEURITE_ENABLE_MDNS
 const char *host = "neurite";
 #endif
+#ifdef NEURITE_ENABLE_DNSPORTAL
+DNSServer dnsServer;
+#endif
+IPAddress apIP(192, 168, 4, 1);
 inline void neurite_cfg_worker(void)
 {
 	struct neurite_data_s *nd = &g_nd;
-	IPAddress myIP;
 	switch (cfg_st) {
 		case CFG_ST_0:
 			analogWrite(NEURITE_LED, 300);
+			WiFi.mode(WIFI_AP);
+			WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
 			WiFi.softAP(nd->uid);
-			myIP = WiFi.softAPIP();
 			LOG_SERIAL.print("AP IP address: ");
-			LOG_SERIAL.println(myIP);
+			LOG_SERIAL.println(apIP);
 			update_cfg_state(CFG_ST_1);
 			break;
 		case CFG_ST_1:
@@ -941,6 +953,10 @@ inline void neurite_cfg_worker(void)
 			LOG_SERIAL.print(host);
 			LOG_SERIAL.println(".local to get started");
 #endif
+#ifdef NEURITE_ENABLE_DNSPORTAL
+			dnsServer.start(53, "*", apIP);
+			log_dbg("DNS server started\n\r");
+#endif
 			server_config(nd);
 			server->begin();
 			log_dbg("HTTP server started\n\r");
@@ -948,6 +964,9 @@ inline void neurite_cfg_worker(void)
 			update_cfg_state(CFG_ST_2);
 			break;
 		case CFG_ST_2:
+#ifdef NEURITE_ENABLE_DNSPORTAL
+			dnsServer.processNextRequest();
+#endif
 			server->handleClient();
 			break;
 		default:
@@ -1278,5 +1297,4 @@ void neurite_user_button(int time_ms)
 #endif
 	}
 }
-
 #endif
