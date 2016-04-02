@@ -1079,7 +1079,7 @@ inline void neurite_worker(void)
 			char payload_buf[32];
 			dbg_assert(payload_buf);
 			sprintf(payload_buf, "checkin: %s", nd->uid);
-			mqtt_cli.publish(nd->cfg.topic_to, (const char *)payload_buf);
+			mqtt_cli.publish("/neuro/chatroom", (const char *)payload_buf);
 
 			start_ticker_led_breath(nd);
 			start_ticker_mon(nd);
