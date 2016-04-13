@@ -895,21 +895,38 @@ static void server_config(struct neurite_data_s *nd)
 	server->on("/edit", HTTP_PUT, handleFileCreate);
 	server->on("/edit", HTTP_DELETE, handleFileDelete);
 	server->on("/edit", HTTP_POST, []() {
-			server->send(200, "text/plain", "");
-			}, handleFileUpload);
+		server->send(200, "text/plain", "");
+	}, handleFileUpload);
 	server->on("/save", HTTP_POST, handleSave);
-
 	server->onNotFound(handleNotFound);
 
 	server->on("/all", HTTP_GET, []() {
-			String json = "{";
-			json += "\"heap\":"+String(ESP.getFreeHeap());
-			json += ", \"analog\":"+String(analogRead(A0));
-			json += ", \"gpio\":"+String((uint32_t)(((GPI | GPO) & 0xFFFF) | ((GP16I & 0x01) << 16)));
-			json += "}";
-			server->send(200, "text/json", json);
-			json = String();
-			});
+		String json = "{";
+		json += "\"heap\":"+String(ESP.getFreeHeap());
+		json += ", \"analog\":"+String(analogRead(A0));
+		json += ", \"gpio\":"+String((uint32_t)(((GPI | GPO) & 0xFFFF) | ((GP16I & 0x01) << 16)));
+		json += "}";
+		server->send(200, "text/json", json);
+		json = String();
+	});
+	server->on("/wifiscan", HTTP_GET, []() {
+		server->send(200, "text/plain", "scan triggered");
+		log_dbg("scan start\r\n");
+		int n = WiFi.scanNetworks();
+		log_dbg("scan done\r\n");
+		if (n > 0) {
+			for (int i = 0; i < n; i++) {
+				log_dbg("");
+				LOG_SERIAL.print(WiFi.SSID(i));
+				LOG_SERIAL.print(" (");
+				LOG_SERIAL.print(WiFi.RSSI(i));
+				LOG_SERIAL.println(")");
+			}
+		} else {
+			log_dbg("No WLAN found\r\n");
+		}
+	});
+
 	server->on("/", handleRoot);
 }
 
