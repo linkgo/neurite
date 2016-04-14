@@ -1027,9 +1027,9 @@ inline void neurite_worker(void)
 			}
 
 			nd->mqtt_connected = true;
-			mqtt_cli.subscribe(nd->cfg.topic_from);
-			log_info("subscribe: %s\n\r", nd->cfg.topic_from);
-			mqtt_cli.subscribe(nd->topic_private, 1);
+			//mqtt_cli.subscribe(nd->cfg.topic_from);
+			//log_info("subscribe: %s\n\r", nd->cfg.topic_from);
+			mqtt_cli.subscribe(nd->topic_private);
 			log_info("subscribe: %s\n\r", nd->topic_private);
 			char payload_buf[32];
 			dbg_assert(payload_buf);
