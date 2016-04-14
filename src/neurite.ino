@@ -914,6 +914,7 @@ static void server_config(struct neurite_data_s *nd)
 		int n = WiFi.scanNetworks();
 		log_dbg("scan done\r\n");
 		if (n > 0) {
+#if 0
 			String json = "{";
 			for (int i = 0; i < n; i++) {
 				if (i > 0)
@@ -921,6 +922,15 @@ static void server_config(struct neurite_data_s *nd)
 				json += "\"" + WiFi.SSID(i) + "\":" + String(WiFi.RSSI(i));
 			}
 			json += "}";
+#else
+			String json = "[";
+			for (int i = 0; i < n; i++) {
+				if (i > 0)
+					json += ",";
+				json += "{\"ssid\":\"" + WiFi.SSID(i) + "\",\"rssi\":" + String(WiFi.RSSI(i)) + "}";
+			}
+			json += "]";
+#endif
 			server->send(200, "text/json", json);
 			log_dbg("");
 			LOG_SERIAL.println(json);
