@@ -910,19 +910,23 @@ static void server_config(struct neurite_data_s *nd)
 		json = String();
 	});
 	server->on("/wifiscan", HTTP_GET, []() {
-		server->send(200, "text/plain", "scan triggered");
 		log_dbg("scan start\r\n");
 		int n = WiFi.scanNetworks();
 		log_dbg("scan done\r\n");
 		if (n > 0) {
+			String json = "{";
 			for (int i = 0; i < n; i++) {
-				log_dbg("");
-				LOG_SERIAL.print(WiFi.SSID(i));
-				LOG_SERIAL.print(" (");
-				LOG_SERIAL.print(WiFi.RSSI(i));
-				LOG_SERIAL.println(")");
+				if (i > 0)
+					json += ", ";
+				json += "\"" + WiFi.SSID(i) + "\":" + String(WiFi.RSSI(i));
 			}
+			json += "}";
+			server->send(200, "text/json", json);
+			log_dbg("");
+			LOG_SERIAL.println(json);
+			json = String();
 		} else {
+			server->send(204, "text/plain", "No WLAN found");
 			log_dbg("No WLAN found\r\n");
 		}
 	});
