@@ -675,6 +675,10 @@ static void cfg_init(struct neurite_data_s *nd)
 	json["psk"] = PSK1;
 	json["topic_to"] = TOPIC_TO_DEFAULT;
 	json["topic_from"] = TOPIC_FROM_DEFAULT;
+#ifdef NEURITE_ENABLE_USER_POWERSAVE
+	json["worktime"] = 30000;
+	json["sleeptime"] = 300000;
+#endif
 	json.printTo(nd->cfg.json_buf, NEURITE_CFG_SIZE);
 }
 
