@@ -648,6 +648,7 @@ static void fs_init(struct neurite_data_s *nd)
 		size_t fileSize = dir.fileSize();
 		log_dbg("file: %s, size: %s\n\r",
 			fileName.c_str(), formatBytes(fileSize).c_str());
+		fileName = String();
 	}
 }
 
@@ -683,6 +684,7 @@ static void handleNotFound(void)
 			message += " " + server->argName(i) + ": " + server->arg(i) + "\n";
 		}
 		server->send(404, "text/plain", message);
+		message = String();
 	}
 #endif
 }
@@ -731,8 +733,12 @@ static bool handleFileRead(String path)
 		File file = SPIFFS.open(path, "r");
 		size_t sent = server->streamFile(file, contentType);
 		file.close();
+		contentType = String();
+		pathWithGz = String();
 		return true;
 	}
+	contentType = String();
+	pathWithGz = String();
 	return false;
 }
 
@@ -824,6 +830,7 @@ static void handleFileList(void)
 	}
 	output += "]";
 	server->send(200, "text/json", output);
+	path = String();
 }
 
 static void handleRoot(void)
@@ -834,6 +841,7 @@ static void handleRoot(void)
 		message += millis();
 		message += " ms";
 		server->send(200, "text/plain", message);
+		message = String();
 	} else {
 		if (!handleFileRead("/index.html"))
 			server->send(404, "text/plain", "FileNotFound");
@@ -877,13 +885,14 @@ static void handleSave(void)
 	message += "Jolly good config!\n";
 	cfg_save_sync(nd);
 	server->send(200, "text/plain", message);
-	/* TODO reboot on save success */
+	message = String();
 	log_dbg("out ok\n\r");
 	reboot(nd);
 	return;
 err_handle_save:
 	message += "Bad request\n";
 	server->send(400, "text/plain", message);
+	message = String();
 	log_dbg("out bad\n\r");
 	return;
 }
@@ -939,6 +948,17 @@ static void server_config(struct neurite_data_s *nd)
 			server->send(204, "text/plain", "No WLAN found");
 			log_dbg("No WLAN found\r\n");
 		}
+	});
+	server->on("/ip", HTTP_GET, []() {
+		String ipstr = String();
+		if((WiFi.getMode() & WIFI_STA))
+			ipstr = WiFi.localIP().toString();
+		else
+			ipstr = WiFi.softAPIP().toString();
+		server->send(200, "text/plain", ipstr);
+		log_dbg("");
+		LOG_SERIAL.println(ipstr);
+		ipstr = String();
 	});
 
 	server->on("/", handleRoot);
