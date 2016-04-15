@@ -69,6 +69,13 @@ static File fsUploadFile;
 #ifdef NEURITE_ENABLE_WIFIMULTI
 static ESP8266WiFiMulti WiFiMulti;
 #endif
+Ticker ticker_led;
+Ticker ticker_cmd;
+Ticker ticker_mon;
+Ticker ticker_but;
+WiFiClient wifi_cli;
+PubSubClient mqtt_cli(wifi_cli);
+StaticJsonBuffer<NEURITE_CFG_SIZE> json_buf;
 static char cfg_buf[NEURITE_CFG_SIZE];
 
 const char STR_READY[] PROGMEM = "neurite ready";
@@ -1251,19 +1258,6 @@ static inline void update_user_state(int st)
 void neurite_user_worker(void)
 {
 	/* add user stuff here */
-#if 0
-	struct neurite_data_s *nd = &g_nd;
-	static int adc_prev = 0;
-	int adc = analogRead(A0);
-	if (abs(adc - adc_prev) > 50) {
-		adc_prev = adc;
-		char buf[32];
-		__bzero(buf, sizeof(buf));
-		sprintf(buf, "adc: %d", analogRead(A0));
-		if (nd->mqtt_connected)
-			mqtt_cli.publish(nd->cfg.topic_to, (const char *)buf);
-	}
-#endif
 	if (b_servo_action) {
 		if (target_degree < myservo.read())
 			myservo.write(myservo.read() - 1);
