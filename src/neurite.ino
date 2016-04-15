@@ -668,13 +668,14 @@ static void cfg_init(struct neurite_data_s *nd)
 
 static void handleNotFound(void)
 {
+	log_dbg("in\r\n");
 #ifdef NEURITE_ENABLE_DNSPORTAL
-	if (!handleFileRead(server->uri())) {
+	if (!handleFileRead(server->uri().c_str())) {
 		if (!handleFileRead("/index.html"))
 			server->send(404, "text/plain", "FileNotFound");
 	}
 #else
-	if (!handleFileRead(server->uri())) {
+	if (!handleFileRead(server->uri().c_str())) {
 		String message = "File Not Found\n\n";
 		message += "URI: ";
 		message += server->uri();
@@ -690,6 +691,7 @@ static void handleNotFound(void)
 		message = String();
 	}
 #endif
+	log_dbg("out\r\n");
 }
 
 static String formatBytes(size_t bytes)
@@ -711,6 +713,7 @@ static String getContentType(String filename)
 	else if (filename.endsWith(".htm")) return "text/html";
 	else if (filename.endsWith(".html")) return "text/html";
 	else if (filename.endsWith(".css")) return "text/css";
+	else if (filename.endsWith(".json")) return "text/json";
 	else if (filename.endsWith(".js")) return "application/javascript";
 	else if (filename.endsWith(".png")) return "image/png";
 	else if (filename.endsWith(".gif")) return "image/gif";
@@ -723,11 +726,12 @@ static String getContentType(String filename)
 	return "text/plain";
 }
 
-static bool handleFileRead(String path)
+static bool handleFileRead(const char *p)
 {
-	log_info("%s\n\r", path.c_str());
+	String path = String(p);
+	log_dbg("in %s\n\r", path.c_str());
 	if (path.endsWith("/"))
-		path += "index.htm";
+		path += "index.html";
 	String contentType = getContentType(path);
 	String pathWithGz = path + ".gz";
 	if (SPIFFS.exists(pathWithGz) || SPIFFS.exists(path)) {
@@ -736,17 +740,22 @@ static bool handleFileRead(String path)
 		File file = SPIFFS.open(path, "r");
 		size_t sent = server->streamFile(file, contentType);
 		file.close();
+		path = String();
 		contentType = String();
 		pathWithGz = String();
+		log_dbg("out\r\n");
 		return true;
 	}
+	path = String();
 	contentType = String();
 	pathWithGz = String();
+	log_dbg("out not exists\r\n");
 	return false;
 }
 
 static void handleFileUpload(void)
 {
+	log_dbg("in\r\n");
 	if (server->uri() != "/edit")
 		return;
 	HTTPUpload& upload = server->upload();
@@ -769,53 +778,69 @@ static void handleFileUpload(void)
 		log_info("done, size: ");
 		LOG_SERIAL.println(upload.totalSize);
 	}
+	log_dbg("out\r\n");
 }
 
 static void handleFileDelete(void)
 {
+	log_dbg("in\r\n");
 	if (server->args() == 0)
 		return server->send(500, "text/plain", "BAD ARGS");
 	String path = server->arg(0);
 	log_info("");
 	LOG_SERIAL.println(path);
-	if (path == "/")
+	if (path == "/") {
+		log_dbg("out 500\r\n");
 		return server->send(500, "text/plain", "BAD PATH");
-	if (!SPIFFS.exists(path))
+	}
+	if (!SPIFFS.exists(path)) {
+		log_dbg("out 404\r\n");
 		return server->send(404, "text/plain", "FileNotFound");
+	}
 	SPIFFS.remove(path);
 	server->send(200, "text/plain", "");
 	path = String();
+	log_dbg("out\r\n");
 }
 
 static void handleFileCreate(void)
 {
+	log_dbg("in\r\n");
 	if (server->args() == 0)
 		return server->send(500, "text/plain", "BAD ARGS");
 	String path = server->arg(0);
 	log_info("");
 	LOG_SERIAL.println(path);
-	if (path == "/")
+	if (path == "/") {
+		log_dbg("out 500 bad path\r\n");
 		return server->send(500, "text/plain", "BAD PATH");
-	if (SPIFFS.exists(path))
+	}
+	if (SPIFFS.exists(path)) {
+		log_dbg("out 500 file exists\r\n");
 		return server->send(500, "text/plain", "FILE EXISTS");
+	}
 	File file = SPIFFS.open(path, "w");
-	if (file)
+	if (file) {
 		file.close();
-	else
+	} else {
+		log_dbg("out 500 failed\r\n");
 		return server->send(500, "text/plain", "CREATE FAILED");
+	}
 	server->send(200, "text/plain", "");
 	path = String();
+	log_dbg("out\r\n");
 }
 
 static void handleFileList(void)
 {
 	String path;
+	log_dbg("in\r\n");
 	if (!server->hasArg("dir")) {
 		path = String("/");
 	} else {
 		path = String(server->arg("dir"));
 	}
-	log_info("");
+	log_dbg("");
 	LOG_SERIAL.println(path);
 	Dir dir = SPIFFS.openDir(path);
 
@@ -834,10 +859,12 @@ static void handleFileList(void)
 	output += "]";
 	server->send(200, "text/json", output);
 	path = String();
+	log_dbg("out\r\n");
 }
 
 static void handleRoot(void)
 {
+	log_dbg("in\r\n");
 	if (b_cfg_ready) {
 		String message = String((const char *)g_nd.uid);
 		message += " alive ";
@@ -849,6 +876,7 @@ static void handleRoot(void)
 		if (!handleFileRead("/index.html"))
 			server->send(404, "text/plain", "FileNotFound");
 	}
+	log_dbg("out\r\n");
 }
 
 static void handleSave(void)
