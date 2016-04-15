@@ -668,8 +668,10 @@ static void cfg_init(struct neurite_data_s *nd)
 static void handleNotFound(void)
 {
 #ifdef NEURITE_ENABLE_DNSPORTAL
-	if (!handleFileRead("/index.html"))
-		server->send(404, "text/plain", "FileNotFound");
+	if (!handleFileRead(server->uri())) {
+		if (!handleFileRead("/index.html"))
+			server->send(404, "text/plain", "FileNotFound");
+	}
 #else
 	if (!handleFileRead(server->uri())) {
 		String message = "File Not Found\n\n";
