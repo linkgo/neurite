@@ -3,10 +3,10 @@ Sample Commands
 
 ap mode fs operation
 --------------------
-curl -X DELETE 'http://192.168.31.234/edit?dir=/index.html.gz'
-curl -X GET 'http://192.168.31.234/list?dir=/'
-curl -F "file=@index.html.gz" http://192.168.31.234/edit
-for file in `ls -A1`; do curl -F "file=@$PWD/$file" http://192.168.31.234/edit; done
+curl -X DELETE 'http://192.168.1.23/edit?dir=/index.html.gz'
+curl -X GET 'http://192.168.1.23/list?dir=/'
+curl -F "file=@index.html.gz" http://192.168.1.23/edit
+for file in `ls -A1`; do curl -F "file=@$PWD/$file" http://192.168.1.23/edit; done
 
 512k (64k spiffs)
 -----------------
@@ -24,4 +24,13 @@ esptool -vv -cd ck -cb 115200 -cp /dev/ttyUSB1 -ca 0x00000 -cf neurite.cpp.bin
 
 mqtt push ota
 -------------
-mqtt publish -h 123.57.208.39 -t /neuro/neurite-00016694/ota 'http://192.168.100.154:8080/firmware/esp.bin'
+mqtt publish -h accrete.org -t /neuro/neurite-00016694/ota 'http://192.168.100.154:8080/firmware/esp.bin'
+
+mqtt config
+-----------
+mqtt publish -h accrete.org -t /neuro/neurite-000c1632/config/ssid -m 'linkgo.io'
+mqtt publish -h accrete.org -t /neuro/neurite-000c1632/config/psk -m 'ilovelinkgo'
+mqtt publish -h accrete.org -t /neuro/neurite-000c1632/config/topic_from -m '/neuro/chatroom'
+mqtt publish -h accrete.org -t /neuro/neurite-000c1632/config/topic_to -m '/neuro/chatroom'
+mqtt publish -h accrete.org -t /neuro/neurite-000c1632/reboot -m "1"
+

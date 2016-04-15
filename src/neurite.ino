@@ -382,6 +382,29 @@ static inline bool wifi_check_status(struct neurite_data_s *nd)
 	return (WiFi.status() == WL_CONNECTED);
 }
 
+static bool config_process(struct neurite_data_s *nd, char *token, char *msg, uint32_t size)
+{
+	if (token == NULL) {
+		log_dbg("hit config\n\r");
+	} else if (strcmp(token, "ssid") == 0) {
+		log_dbg("hit config: ssid\n\r");
+		strncpy(nd->cfg.ssid, msg, NEURITE_SSID_LEN);
+	} else if (strcmp(token, "psk") == 0) {
+		log_dbg("hit config: psk\n\r");
+		strncpy(nd->cfg.psk, msg, NEURITE_PSK_LEN);
+	} else if (strcmp(token, "topic_to") == 0) {
+		log_dbg("hit config: topic_to\n\r");
+		strncpy(nd->cfg.topic_to, msg, MQTT_TOPIC_LEN);
+	} else if (strcmp(token, "topic_from") == 0) {
+		log_dbg("hit config: topic_from\n\r");
+		strncpy(nd->cfg.topic_from, msg, MQTT_TOPIC_LEN);
+	} else {
+		log_warn("hit config: %s (no handler)\n\r", token);
+	}
+	cfg_save_sync(nd);
+	return true;
+}
+
 static void mqtt_callback(char *topic, byte *payload, unsigned int length)
 {
 	struct neurite_data_s *nd = &g_nd;
@@ -397,7 +420,14 @@ static void mqtt_callback(char *topic, byte *payload, unsigned int length)
 		if (token == NULL) {
 			log_warn("no subtopic, ignore\n\r");
 		} else if (strcmp(token, "config") == 0) {
-			log_dbg("hit config\n\r");
+			token = strtok(NULL, "/");
+			char *msg = (char *)malloc(MQTT_MSG_LEN + 1);
+			__bzero(msg, sizeof(msg));
+			for (int i = 0; i < length; i++)
+				msg[i] = payload[i];
+			msg[length] = '\0';
+			config_process(nd, token, msg, length);
+			free(msg);
 		} else if (strcmp(token, "ota") == 0) {
 			log_dbg("hit ota\n\r");
 			char url[MQTT_MSG_LEN];
@@ -412,6 +442,8 @@ static void mqtt_callback(char *topic, byte *payload, unsigned int length)
 			for (int i = 0; i < length; i++)
 				url[i] = payload[i];
 			otafs_over_http(url);
+		} else if (strcmp(token, "reboot") == 0) {
+			reboot(nd);
 		} else {
 			log_warn("unsupported %s, leave to user\n\r", token);
 		}
@@ -638,7 +670,9 @@ static void cfg_init(struct neurite_data_s *nd)
 	sprintf(nd->topic_private, "%s/%s/#", TOPIC_HEADER, nd->uid);
 	log_dbg("topic_private: %s\n\r", nd->topic_private);
 	sprintf(nd->cfg.topic_to, "%s", TOPIC_TO_DEFAULT);
+	log_dbg("topic_to: %s\n\r", nd->cfg.topic_to);
 	sprintf(nd->cfg.topic_from, "%s", TOPIC_FROM_DEFAULT);
+	log_dbg("topic_from: %s\n\r", nd->cfg.topic_from);
 	sprintf(nd->cfg.ssid, "%s", SSID1);
 	sprintf(nd->cfg.psk, "%s", PSK1);
 }
