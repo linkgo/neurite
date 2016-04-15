@@ -370,6 +370,7 @@ static void wifi_connect(struct neurite_data_s *nd)
 	log_dbg("Connecting to ");
 	LOG_SERIAL.println(nd->cfg.ssid);
 	WiFi.mode(WIFI_STA);
+	WiFi.hostname(nd->uid);
 #ifdef NEURITE_ENABLE_WIFIMULTI
 	WiFiMulti.addAP(nd->cfg.ssid, nd->cfg.psk);
 	WiFiMulti.addAP(SSID2, PSK2);
