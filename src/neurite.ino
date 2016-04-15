@@ -1230,8 +1230,6 @@ void neurite_user_hold(void)
 void neurite_user_setup(void)
 {
 	log_dbg("\n\r");
-	pinMode(14, OUTPUT);
-	analogWrite(14, 1023);
 }
 
 /* called once on mqtt message received */
@@ -1242,48 +1240,12 @@ void neurite_user_mqtt(char *topic, byte *payload, unsigned int length)
 		char *subtopic = topic + strlen(nd->topic_private) - 2;
 		char *token = NULL;
 		token = strtok(subtopic, "/");
-		/* check for something like: /neuro/neurite-000c1636/io */
 		if (strcmp(token, "io") == 0) {
 			log_dbg("hit io, payload: %c\n\r", payload[0]);
-			if (payload[0] == '0')
-				analogWrite(14, 0);
-			else
-				analogWrite(14, 1023);
 		}
 	}
 	if (strcmp(topic, nd->cfg.topic_from) == 0) {
-		if (length >= 7 &&
-		    payload[0] == 'l' &&
-		    payload[1] == 'i' &&
-		    payload[2] == 'g' &&
-		    payload[3] == 'h' &&
-		    payload[4] == 't' &&
-		    payload[5] == ' ' &&
-		    payload[6] == 'o')
-			if (payload[7] == 'n')
-				analogWrite(14, 0);
-			else
-				analogWrite(14, 1023);
 	}
-	char *token = NULL;
-	char *msg = (char *)malloc(MQTT_MSG_LEN);
-	__bzero(msg, sizeof(msg));
-	for (int i = 0; i < length; i++)
-		msg[i] = payload[i];
-	msg[length] = '\0';
-	token = strtok(msg, " ");
-	if (token == NULL) {
-		log_warn("no payload, ignore\n\r");
-	} else if (strcmp(token, "light:") == 0) {
-		token = strtok(NULL, "\0");
-		if (token) {
-			int val = atoi(token);
-			log_dbg("hit light, msg(value): %s(%d)\n\r", token, val);
-			analogWrite(14, val);
-		}
-	} else {
-	}
-	free(msg);
 }
 
 /* time_ms: the time delta in ms of button press/release cycle. */
@@ -1297,9 +1259,9 @@ void neurite_user_button(int time_ms)
 			char buf[4];
 			val = 1 - val;
 			if (val)
-				mqtt_cli.publish("/neuro/chatroom", "light on");
+				mqtt_cli.publish(nd->cfg.topic_to, "light on");
 			else
-				mqtt_cli.publish("/neuro/chatroom", "light off");
+				mqtt_cli.publish(nd->cfg.topic_to, "light off");
 		}
 	}
 }
