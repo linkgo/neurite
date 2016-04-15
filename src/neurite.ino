@@ -1229,7 +1229,6 @@ void loop()
 #ifdef NEURITE_ENABLE_USER
 #define USER_LOOP_INTERVAL 100
 
-Servo myservo;
 static bool b_user_loop_run = true;
 
 enum {
@@ -1286,7 +1285,6 @@ void neurite_user_loop(void)
 void neurite_user_hold(void)
 {
 	log_dbg("\n\r");
-	myservo.detach();
 	update_user_state(USER_ST_0);
 }
 
@@ -1296,13 +1294,11 @@ void neurite_user_setup(void)
 	log_dbg("\n\r");
 	pinMode(14, OUTPUT);
 	analogWrite(14, 1023);
-	myservo.attach(13);
 }
 
 /* called once on mqtt message received */
 void neurite_user_mqtt(char *topic, byte *payload, unsigned int length)
 {
-#if 0
 	struct neurite_data_s *nd = &g_nd;
 	if (strncmp(topic, nd->topic_private, strlen(nd->topic_private) - 2) == 0) {
 		char *subtopic = topic + strlen(nd->topic_private) - 2;
@@ -1347,17 +1343,9 @@ void neurite_user_mqtt(char *topic, byte *payload, unsigned int length)
 			log_dbg("hit light, msg(value): %s(%d)\n\r", token, val);
 			analogWrite(14, val);
 		}
-	} else if (strcmp(token, "servo:") == 0) {
-		token = strtok(NULL, "\0");
-		if (token) {
-			int val = atoi(token);
-			log_dbg("hit servo, msg(value): %s(%d)\n\r", token, val);
-			myservo.write(val);
-		}
 	} else {
 	}
 	free(msg);
-#endif
 }
 
 /* time_ms: the time delta in ms of button press/release cycle. */
