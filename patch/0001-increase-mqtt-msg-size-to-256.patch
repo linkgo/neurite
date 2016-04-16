@@ -1,0 +1,25 @@
+From ea4d8f29fbea8a4865a5882232945272d5f0a90a Mon Sep 17 00:00:00 2001
+From: Librae <librae8226@gmail.com>
+Date: Sat, 16 Apr 2016 17:16:53 +0800
+Subject: [PATCH] increase mqtt msg size to 256
+
+---
+ src/PubSubClient.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/PubSubClient.h b/src/PubSubClient.h
+index be4bd67..10cb784 100755
+--- a/src/PubSubClient.h
++++ b/src/PubSubClient.h
+@@ -23,7 +23,7 @@
+ 
+ // MQTT_MAX_PACKET_SIZE : Maximum packet size
+ #ifndef MQTT_MAX_PACKET_SIZE
+-#define MQTT_MAX_PACKET_SIZE 128
++#define MQTT_MAX_PACKET_SIZE 256
+ #endif
+ 
+ // MQTT_KEEPALIVE : keepAlive interval in Seconds
+-- 
+1.9.1
+
