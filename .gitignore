@@ -1,2 +1,4 @@
 *cscope*
 .pioenvs
+fs/tmp
+fs/spiffs.1m.bin
