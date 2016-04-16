@@ -1240,55 +1240,49 @@ void neurite_user_worker(void)
 {
 	/* add user stuff here */
 	struct neurite_data_s *nd = &g_nd;
-	char buf[32];
 
+	String json = "[";
+
+	/* lux */
 	sensors_event_t event;
 	if (!tsl.getEvent(&event))
 		event.light = -1;
-	__bzero(buf, sizeof(buf));
-	sprintf(buf, "ligh: %d lux", (int)event.light);
-	log_dbg("%s\n\r", buf);
-	if (nd->mqtt_connected)
-		mqtt_cli.publish(nd->cfg.topic_to, (const char *)buf);
+	json += "{\"light\":" + String(event.light) + "}";
 
+	/* 'C */
 	int t = (int)(bme.readTemperature()*100);
 	int t_i = t/100;
 	int t_d = t%100;
-	__bzero(buf, sizeof(buf));
-	sprintf(buf, "temp: %u.%02u'C", t_i, t_d);
-	log_dbg("%s\n\r", buf);
-	if (nd->mqtt_connected)
-		mqtt_cli.publish(nd->cfg.topic_to, (const char *)buf);
+	json += ",{\"temp\":" + String(t_i) + "." + String(t_d) + "}";
 
+	/* hPa */
 	int p = (int)(bme.readPressure());
 	int p_i = p/100;
 	int p_d = p%100;
-	__bzero(buf, sizeof(buf));
-	sprintf(buf, "pres: %u.%02u hPa", p_i, p_d);
-	log_dbg("%s\n\r", buf);
-	if (nd->mqtt_connected)
-		mqtt_cli.publish(nd->cfg.topic_to, (const char *)buf);
+	json += ",{\"pres\":" + String(p_i) + "." + String(p_d) + "}";
 
+	/* % */
 	int h = (int)(bme.readHumidity()*100);
 	int h_i = h/100;
 	int h_d = h%100;
-	__bzero(buf, sizeof(buf));
-	sprintf(buf, "humi: %u.%02u%%", h_i, h_d);
-	log_dbg("%s\n\r", buf);
-	if (nd->mqtt_connected)
-		mqtt_cli.publish(nd->cfg.topic_to, (const char *)buf);
-#if 1
+	json += ",{\"humi\":" + String(h_i) + "." + String(h_d) + "}";
+
+	/* mA, mV, 'C, mWH, minutes */
 	int ac = (256 * __read8(0x55, 0x15) + __read8(0x55, 0x14)) * 357 / 2000;
 	int volt = 256 * __read8(0x55, 0x09) + __read8(0x55, 0x08);
 	int temp = (25 * (256 * __read8(0x55, 0x07) + __read8(0x55, 0x06)) - 27315)/100;
 	int sae = (256 * __read8(0x55, 0x23) + __read8(0x55, 0x22)) * 292 / 200;
 	int tte = 256 * __read8(0x55, 0x17) + __read8(0x55, 0x16);
-	__bzero(buf, sizeof(buf));
-	sprintf(buf, "ac: %d, volt: %d, temp: %d, sae: %d, tte: %d", ac, volt, temp, sae, tte);
-	log_dbg("%s\n\r", buf);
+	json += ",{\"ac\":" + String(ac) + "}";
+	json += ",{\"volt\":" + String(volt) + "}";
+	json += ",{\"sae\":" + String(sae) + "}";
+	json += ",{\"tte\":" + String(tte) + "}";
+
+	json += "]";
+
 	if (nd->mqtt_connected)
-		mqtt_cli.publish(nd->cfg.topic_to, (const char *)buf);
-#endif
+		mqtt_cli.publish(nd->cfg.topic_to, (const char *)json.c_str());
+	json = String();
 }
 
 void neurite_user_loop(void)
@@ -1345,10 +1339,15 @@ void neurite_user_button(int time_ms)
 		static int val = 0;
 		char buf[4];
 		val = 1 - val;
-		if (val)
+		if (val) {
 			b_user_loop_run = true;
-		else
+			if (nd->mqtt_connected)
+				mqtt_cli.publish(nd->cfg.topic_to, "user loop on");
+		} else {
 			b_user_loop_run = false;
+			if (nd->mqtt_connected)
+				mqtt_cli.publish(nd->cfg.topic_to, "user loop off");
+		}
 	}
 }
 
