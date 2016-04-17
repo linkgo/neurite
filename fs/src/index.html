@@ -8438,12 +8438,15 @@ global style for neurite AP web
     opacity: 0.5;
   }
 
-  .neurite.button {
-    display: block;
-    margin-right: auto;
-    margin-left: auto;
+  .neurite.left.button {
+    display: inline-block;
+    float: left;
   }
 
+  .neurite.right.button {
+    display: inline-block;
+    float: right;
+  }
 </style>
 
 </head>
@@ -8493,17 +8496,10 @@ global style for neurite AP web
     </div>
 
     <div class = "field">
-      <div class="two fields">
-        <div class = "field">
-          <button class="neurite ui orange button" id="scan" onclick="wifiscan()">Scan</button>
-          <button style="display:none" class="neurite ui orange loading button" id="scanload">Scan</button>
-        </div>
+          <button class="neurite left ui orange button" id="scan" onclick="wifiscan()">Scan</button>
+          <button style="display:none" class="neurite left ui orange loading button" id="scanload">Scan</button>
 
-        <div class = "field">
-          <button style="text-align:center" class="neurite ui primary button"
-            onclick="saveWifi()">Save</button>
-        </div>
-      </div>
+          <button class="neurite right ui primary button" onclick="saveWifi()">Save</button>
     </div>
 
   </div>
