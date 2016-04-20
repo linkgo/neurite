@@ -13051,34 +13051,6 @@ $.fn.transition.settings = {
 
 <script type="text/javascript">
 
-  function validate()
-  {
-  	var ssid = document.getElementById("ssid").value;
-  	var password = document.getElementById("password").value;
-  	if (ssid.length == 0)
-  		return false;
-  	/*alert("ssid: " + ssid + " password: " + password);*/
-  	return true;
-  }
-
-  function subscribe()
-  {
-  	var e = document.getElementById("email").value;
-  	if (/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(e)) {
-  		return true;
-  	} else {
-  		return false;
-  	}
-  }
-
-  function httpget(url)
-  {
-  	var xmlHttp = new XMLHttpRequest();
-  	xmlHttp.open("GET", url, false); // false for synchronous request
-  	xmlHttp.send(null);
-  	return xmlHttp.responseText;
-  }
-
   function wifiscan()
   {
     console.log("scan wifi");
@@ -13113,6 +13085,10 @@ $.fn.transition.settings = {
   {
     var ssid = $('#ssid').dropdown('get value');
     var pwd = document.getElementById("password").value;
+    if (ssid == "[object Object]") {
+      console.log("no ssid");
+      return;
+    }
     console.log("here save wifi:", ssid, pwd);
 
     var xmlHttp = new XMLHttpRequest();
