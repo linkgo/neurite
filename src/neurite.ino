@@ -749,7 +749,9 @@ static bool handleFileRead(const char *p)
 		if (SPIFFS.exists(pathWithGz))
 			path += ".gz";
 		File file = SPIFFS.open(path, "r");
+		log_dbg("streaming size: %u\n\r", file.size());
 		size_t sent = server->streamFile(file, contentType);
+		log_dbg("stream return sent: %u\n\r", sent);
 		file.close();
 		path = String();
 		contentType = String();
@@ -961,6 +963,13 @@ static void server_config(struct neurite_data_s *nd)
 		json = String();
 	});
 	server->on("/wifiscan", HTTP_GET, []() {
+		static bool scanning = false;
+		if (scanning) {
+			server->send(202, "text/plain", "");
+			log_dbg("busy scanning, return\r\n");
+			return;
+		}
+		scanning = true;
 		log_dbg("scan start\r\n");
 		int n = WiFi.scanNetworks();
 		log_dbg("scan done\r\n");
@@ -990,6 +999,7 @@ static void server_config(struct neurite_data_s *nd)
 			server->send(204, "text/plain", "No WLAN found");
 			log_dbg("No WLAN found\r\n");
 		}
+		scanning = false;
 	});
 	server->on("/ip", HTTP_GET, []() {
 		String ipstr = String();
@@ -1047,7 +1057,7 @@ inline void neurite_cfg_worker(void)
 			LOG_SERIAL.println(".local to get started");
 #endif
 #ifdef NEURITE_ENABLE_DNSPORTAL
-			dnsServer.start(53, "*", apIP);
+			dnsServer.start(53, "linkgo.io", apIP);
 			log_dbg("DNS server started\n\r");
 #endif
 			server_config(nd);
