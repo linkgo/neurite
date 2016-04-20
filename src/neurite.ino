@@ -537,11 +537,13 @@ inline void stop_ticker_led(struct neurite_data_s *nd)
 }
 inline void start_ticker_led_breath(struct neurite_data_s *nd)
 {
+	ticker_led.detach();
 	stop_ticker_led(nd);
 	ticker_led.attach_ms(50, ticker_led_breath);
 }
 inline void start_ticker_led_blink(struct neurite_data_s *nd)
 {
+	ticker_mon.detach();
 	stop_ticker_led(nd);
 	ticker_led.attach_ms(50, ticker_led_blink);
 }
@@ -551,6 +553,7 @@ inline void stop_ticker_mon(struct neurite_data_s *nd)
 }
 inline void start_ticker_mon(struct neurite_data_s *nd)
 {
+	ticker_mon.detach();
 	stop_ticker_mon(nd);
 	ticker_mon.attach_ms(100, ticker_monitor_task, nd);
 }
@@ -560,6 +563,7 @@ inline void stop_ticker_but(struct neurite_data_s *nd)
 }
 inline void start_ticker_but(struct neurite_data_s *nd)
 {
+	ticker_but.detach();
 	stop_ticker_but(nd);
 	ticker_but.attach_ms(50, ticker_button_task, nd);
 }
@@ -620,6 +624,7 @@ inline void stop_ticker_cmd(struct neurite_data_s *nd)
 
 inline void start_ticker_cmd(struct neurite_data_s *nd)
 {
+	ticker_cmd.detach();
 	stop_ticker_cmd(nd);
 	ticker_cmd.attach_ms(1, ticker_cmd_task, nd);
 }
@@ -1073,7 +1078,7 @@ inline void neurite_cfg_worker(void)
 			server->handleClient();
 			break;
 		default:
-			log_err("unknown cfg state: %d\n\r", worker_st);
+			log_err("unknown cfg state: %d\n\r", cfg_st);
 			break;
 	}
 }
@@ -1104,7 +1109,10 @@ inline void neurite_worker(void)
 			break;
 		case WORKER_ST_3:
 			if (!mqtt_check_status(nd)) {
-				mqtt_connect(nd);
+				if (!wifi_check_status(nd))
+					update_worker_state(WORKER_ST_0);
+				else
+					mqtt_connect(nd);
 				break;
 			}
 
