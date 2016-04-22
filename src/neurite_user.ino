@@ -70,14 +70,18 @@ extern struct neurite_data_s g_nd;
  *     3. Peripherals
  */
 
-#define USER_LOOP_INTERVAL 1000
+#define USER_LOOP_INTERVAL 5000
 
 Adafruit_TSL2561_Unified tsl = Adafruit_TSL2561_Unified(TSL2561_ADDR_LOW, 12345);
 Adafruit_BME280 bme;
 #define SEALEVELPRESSURE_HPA (1013.25)
 #define BME280_ADDR 0x76
 
+#ifdef NEURITE_ENABLE_USER_POWERSAVE
+static bool b_user_loop_run = true;
+#else
 static bool b_user_loop_run = false;
+#endif
 
 enum {
 	USER_ST_0 = 0,
@@ -91,65 +95,67 @@ static inline void update_user_state(int st)
 	user_st = st;
 }
 
+#ifdef NEURITE_ENABLE_USER_ONESHOT
+static bool b_accomplished = false;
+#endif
 void neurite_user_worker(void)
 {
 	/* add user stuff here */
 	struct neurite_data_s *nd = &g_nd;
-	char buf[32];
 	char topic_to[MQTT_TOPIC_LEN] = {0};
 	nd->cfg.get("topic_to", topic_to, MQTT_TOPIC_LEN);
 
+	String json = "{";
+
+	/* lux */
 	sensors_event_t event;
 	if (!tsl.getEvent(&event))
 		event.light = -1;
-	__bzero(buf, sizeof(buf));
-	sprintf(buf, "ligh: %d lux", (int)event.light);
-	log_dbg("%s\n\r", buf);
-	if (nd->mqtt_connected)
-		mqtt_cli.publish(topic_to, (const char *)buf);
+	json += "\"light\":" + String(event.light);
 
+	/* 'C */
 	int t = (int)(bme.readTemperature()*100);
 	int t_i = t/100;
 	int t_d = t%100;
-	__bzero(buf, sizeof(buf));
-	sprintf(buf, "temp: %u.%02u'C", t_i, t_d);
-	log_dbg("%s\n\r", buf);
-	if (nd->mqtt_connected)
-		mqtt_cli.publish(topic_to, (const char *)buf);
+	json += ",\"temp\":" + String(t_i) + "." + String(t_d);
 
+	/* hPa */
 	int p = (int)(bme.readPressure());
 	int p_i = p/100;
 	int p_d = p%100;
-	__bzero(buf, sizeof(buf));
-	sprintf(buf, "pres: %u.%02u hPa", p_i, p_d);
-	log_dbg("%s\n\r", buf);
-	if (nd->mqtt_connected)
-		mqtt_cli.publish(topic_to, (const char *)buf);
+	json += ",\"pres\":" + String(p_i) + "." + String(p_d);
 
+	/* % */
 	int h = (int)(bme.readHumidity()*100);
 	int h_i = h/100;
 	int h_d = h%100;
-	__bzero(buf, sizeof(buf));
-	sprintf(buf, "humi: %u.%02u%%", h_i, h_d);
-	log_dbg("%s\n\r", buf);
-	if (nd->mqtt_connected)
-		mqtt_cli.publish(topic_to, (const char *)buf);
-#if 0
+	json += ",\"humi\":" + String(h_i) + "." + String(h_d);
+
+	/* mA, mV, 'C, mWH, minutes */
 	int ac = (256 * __read8(0x55, 0x15) + __read8(0x55, 0x14)) * 357 / 2000;
 	int volt = 256 * __read8(0x55, 0x09) + __read8(0x55, 0x08);
 	int temp = (25 * (256 * __read8(0x55, 0x07) + __read8(0x55, 0x06)) - 27315)/100;
 	int sae = (256 * __read8(0x55, 0x23) + __read8(0x55, 0x22)) * 292 / 200;
 	int tte = 256 * __read8(0x55, 0x17) + __read8(0x55, 0x16);
-	__bzero(buf, sizeof(buf));
-	sprintf(buf, "ac: %d, volt: %d, temp: %d, sae: %d, tte: %d", ac, volt, temp, sae, tte);
-	log_dbg("%s\n\r", buf);
-	if (nd->mqtt_connected)
-		mqtt_cli.publish(nd->cfg.topic_to, (const char *)buf);
+	json += ",\"ac\":" + String(ac);
+	json += ",\"volt\":" + String(volt);
+	json += ",\"sae\":" + String(sae);
+	json += ",\"tte\":" + String(tte);
+
+	json += "}";
+
+	if (nd->mqtt_connected) {
+		mqtt_cli.publish(nd->cfg.topic_to, (const char *)json.c_str());
+#ifdef NEURITE_ENABLE_USER_ONESHOT
+		b_accomplished = true;
 #endif
+	}
+	json = String();
 }
 
 void neurite_user_loop(void)
 {
+	struct neurite_data_s *nd = &g_nd;
 	static uint32_t prev_time = 0;
 	if (b_user_loop_run == false)
 		return;
@@ -162,7 +168,19 @@ void neurite_user_loop(void)
 			update_user_state(USER_ST_1);
 			break;
 		case USER_ST_1:
+#ifdef NEURITE_ENABLE_USER_POWERSAVE
+			if (millis() > nd->cfg.worktime) {
+				log_info("ready to sleep %u ms\r\n", nd->cfg.sleeptime);
+				ESP.deepSleep((nd->cfg.sleeptime)*1000UL, RF_DEFAULT);
+				while(1);
+			}
+#endif
+#ifdef NEURITE_ENABLE_USER_ONESHOT
+			if (!b_accomplished)
+				neurite_user_worker();
+#else
 			neurite_user_worker();
+#endif
 			break;
 		default:
 			log_err("unknown user state: %d\n\r", user_st);
@@ -199,15 +217,22 @@ void neurite_user_mqtt(char *topic, byte *payload, unsigned int length)
 void neurite_user_button(int time_ms)
 {
 	struct neurite_data_s *nd = &g_nd;
+	char topic_to[MQTT_TOPIC_LEN] = {0};
+	nd->cfg.get("topic_to", topic_to, MQTT_TOPIC_LEN);
 	if (time_ms >= 50) {
 		/* do something on button event */
 		static int val = 0;
 		char buf[4];
 		val = 1 - val;
-		if (val)
+		if (val) {
 			b_user_loop_run = true;
-		else
+			if (nd->mqtt_connected)
+				mqtt_cli.publish(topic_to, "user loop on");
+		} else {
 			b_user_loop_run = false;
+			if (nd->mqtt_connected)
+				mqtt_cli.publish(topic_to, "user loop off");
+		}
 	}
 }
 
