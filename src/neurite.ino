@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015 Linkgo LLC
+ * Copyright (c) 2015-2016 Linkgo LLC
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -50,67 +50,29 @@ extern "C" {
 #include "user_interface.h"
 }
 
-#define NEURITE_CFG_PATH	"/config.json"
-#define NEURITE_CFG_SIZE	1024
-#define NEURITE_CMD_BUF_SIZE	256
-#define NEURITE_UID_LEN		32
-#define NEURITE_SSID_LEN	32
-#define NEURITE_PSK_LEN		32
+#include "neurite_priv.h"
 
-#define MQTT_TOPIC_LEN		64
-#define MQTT_MSG_LEN		256
+/* global */
+extern struct neurite_data_s g_nd;
 
-#define NEURITE_LED		5
-#define NEURITE_BUTTON		0
-
-const char STR_READY[] PROGMEM = "neurite ready";
-
-struct cmd_parser_s;
-typedef void (*cmd_parser_cb_fp)(struct cmd_parser_s *cp);
-
-struct cmd_parser_s {
-	char *buf;
-	uint16_t buf_size;
-	uint16_t data_len;
-	bool cmd_begin;
-	cmd_parser_cb_fp callback;
-};
-
-struct neurite_cfg_s {
-	char topic_to[MQTT_TOPIC_LEN];
-	char topic_from[MQTT_TOPIC_LEN];
-	char ssid[NEURITE_SSID_LEN];
-	char psk[NEURITE_PSK_LEN];
-};
-
-struct neurite_data_s {
-	bool wifi_connected;
-	bool mqtt_connected;
-	struct neurite_cfg_s cfg;
-	struct cmd_parser_s *cp;
-	char uid[NEURITE_UID_LEN];
-	char topic_private[MQTT_TOPIC_LEN];
-};
-
-static struct neurite_data_s g_nd;
+/* static */
 static struct cmd_parser_s g_cp;
 static char cmd_buf[NEURITE_CMD_BUF_SIZE];
 static bool b_cfg_ready;
 
+static Ticker ticker_led;
+static Ticker ticker_cmd;
+static Ticker ticker_mon;
+static Ticker ticker_but;
+static ESP8266WebServer *server;
+static File fsUploadFile;
 #ifdef NEURITE_ENABLE_WIFIMULTI
-ESP8266WiFiMulti WiFiMulti;
+static ESP8266WiFiMulti WiFiMulti;
 #endif
-Ticker ticker_led;
-Ticker ticker_cmd;
-Ticker ticker_mon;
-Ticker ticker_but;
-WiFiClient wifi_cli;
-PubSubClient mqtt_cli(wifi_cli);
-StaticJsonBuffer<NEURITE_CFG_SIZE> json_buf;
 static char cfg_buf[NEURITE_CFG_SIZE];
+StaticJsonBuffer<NEURITE_CFG_SIZE> json_buf;
 
-ESP8266WebServer *server;
-File fsUploadFile;
+const char STR_READY[] PROGMEM = "neurite ready";
 
 static void reboot(struct neurite_data_s *nd);
 
@@ -1211,110 +1173,3 @@ void loop()
 		neurite_user_loop();
 #endif
 }
-
-/*
- * Advanced Development
- *
- * Brief:
- *     Below interfaces are objected to advanced development based on Neurite.
- *     Also these code can be take as some example. Thus they are extended
- *     features, which are not included in Neurite core services.
- *
- * Benefits:
- *     Thanks to Neurite, it's more easily to use below features:
- *     1. OTA
- *     2. MQTT
- *     3. Peripherals
- */
-
-#ifdef NEURITE_ENABLE_USER
-#define USER_LOOP_INTERVAL 1000
-
-static bool b_user_loop_run = true;
-
-enum {
-	USER_ST_0 = 0,
-	USER_ST_1,
-};
-static int user_st = USER_ST_0;
-
-static inline void update_user_state(int st)
-{
-	log_dbg("-> USER_ST_%d\n\r", st);
-	user_st = st;
-}
-
-void neurite_user_worker(void)
-{
-	/* add user stuff here */
-}
-
-void neurite_user_loop(void)
-{
-	static uint32_t prev_time = 0;
-	if (b_user_loop_run == false)
-		return;
-	if ((millis() - prev_time) < USER_LOOP_INTERVAL)
-		return;
-	prev_time = millis();
-	switch (user_st) {
-		case USER_ST_0:
-			neurite_user_setup();
-			update_user_state(USER_ST_1);
-			break;
-		case USER_ST_1:
-			neurite_user_worker();
-			break;
-		default:
-			log_err("unknown user state: %d\n\r", user_st);
-			break;
-	}
-}
-
-/* called on critical neurite behavior such as OTA */
-void neurite_user_hold(void)
-{
-	log_dbg("\n\r");
-	update_user_state(USER_ST_0);
-}
-
-/* will be called after neurite system setup */
-void neurite_user_setup(void)
-{
-	log_dbg("\n\r");
-}
-
-/* called once on mqtt message received */
-void neurite_user_mqtt(char *topic, byte *payload, unsigned int length)
-{
-	struct neurite_data_s *nd = &g_nd;
-	if (strncmp(topic, nd->topic_private, strlen(nd->topic_private) - 2) == 0) {
-		char *subtopic = topic + strlen(nd->topic_private) - 2;
-		char *token = NULL;
-		token = strtok(subtopic, "/");
-		if (strcmp(token, "io") == 0) {
-			log_dbg("hit io, payload: %c\n\r", payload[0]);
-		}
-	}
-	if (strcmp(topic, nd->cfg.topic_from) == 0) {
-	}
-}
-
-/* time_ms: the time delta in ms of button press/release cycle. */
-void neurite_user_button(int time_ms)
-{
-	struct neurite_data_s *nd = &g_nd;
-	if (time_ms >= 50) {
-		/* do something on button event */
-		if (nd->mqtt_connected) {
-			static int val = 0;
-			char buf[4];
-			val = 1 - val;
-			if (val)
-				mqtt_cli.publish(nd->cfg.topic_to, "light on");
-			else
-				mqtt_cli.publish(nd->cfg.topic_to, "light off");
-		}
-	}
-}
-#endif
