@@ -70,7 +70,6 @@ static File fsUploadFile;
 static ESP8266WiFiMulti WiFiMulti;
 #endif
 static char cfg_buf[NEURITE_CFG_SIZE];
-StaticJsonBuffer<NEURITE_CFG_SIZE> json_buf;
 
 const char STR_READY[] PROGMEM = "neurite ready";
 
@@ -240,6 +239,7 @@ static bool cfg_load(struct neurite_data_s *nd)
 
 static int cfg_load_sync(struct neurite_data_s *nd)
 {
+	StaticJsonBuffer<NEURITE_CFG_SIZE> json_buf;
 	log_dbg("in\n\r");
 	if (!cfg_load(nd)) {
 		log_err("load cfg failed\n\r");
@@ -275,6 +275,7 @@ static int cfg_load_sync(struct neurite_data_s *nd)
 
 static bool cfg_save_sync(struct neurite_data_s *nd)
 {
+	StaticJsonBuffer<NEURITE_CFG_SIZE> json_buf;
 	JsonObject& json = json_buf.createObject();
 
 	cfg_run_dump(nd);
@@ -305,6 +306,7 @@ static bool cfg_validate(struct neurite_data_s *nd)
 		log_err("load cfg failed\n\r");
 		return false;
 	}
+	StaticJsonBuffer<NEURITE_CFG_SIZE> json_buf;
 	JsonObject& json = json_buf.parseObject(cfg_buf);
 	if (!json.success()) {
 		log_err("parse cfg failed\n\r");
