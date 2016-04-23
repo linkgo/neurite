@@ -90,6 +90,24 @@ static inline void update_worker_state(int st)
 	worker_st = st;
 }
 
+static void file_dump(const char *file)
+{
+	if (!file) {
+		log_warn("invalid pointer!\n\r");
+		return;
+	}
+	File configFile = SPIFFS.open(file, "r");
+	if (!configFile) {
+		log_err("open failed\n\r");
+		return;
+	}
+	log_dbg("%s:\n\r", file);
+	while (configFile.available())
+		LOG_SERIAL.write(configFile.read());
+	LOG_SERIAL.println();
+	configFile.close();
+}
+
 static void ota_hold(void)
 {
 	struct neurite_data_s *nd = &g_nd;
@@ -111,7 +129,7 @@ static void ota_release(void)
 	start_ticker_but(nd);
 }
 
-static int ota_over_http(char *url)
+static int ota_over_http(const char *url)
 {
 	if (!url) {
 		log_err("invalid url\n\r");
@@ -141,7 +159,7 @@ static int ota_over_http(char *url)
 	return ret;
 }
 
-static int otafs_over_http(char *url)
+static int otafs_over_http(const char *url)
 {
 	if (!url) {
 		log_err("invalid url\n\r");
@@ -195,31 +213,85 @@ static void ticker_led_blink(void)
 	val = (val == 1023) ? 500 : 1023;
 }
 
-static void cfg_run_dump(struct neurite_data_s *nd)
+static bool cfg_get(const char *str, char *buf, size_t size)
 {
-	log_dbg("ssid: %s\n\r", nd->cfg.ssid);
-	log_dbg("psk: %s\n\r", nd->cfg.psk);
-	log_dbg("topic_to: %s\n\r", nd->cfg.topic_to);
-	log_dbg("topic_from: %s\n\r", nd->cfg.topic_from);
+	struct neurite_data_s *nd = &g_nd;
+	if (!buf || !str) {
+		log_warn("invalid pointer!\n\r");
+		return false;
+	}
+
+	StaticJsonBuffer<NEURITE_CFG_SIZE> json_buf;
+	JsonObject& json = json_buf.parseObject((const char *)nd->cfg.json_buf);
+	if (!json.success()) {
+		log_err("parse failed\n\r");
+		return false;
+	}
+	const char *p = json[str];
+	if (p) {
+		strncpy(buf, p, size);
+		//log_dbg("'%s': %s\n\r", str, p);
+		return true;
+	} else {
+		log_warn("no cfg '%s' found\n\r", str, p);
+		return false;
+	}
 }
 
-static void cfg_file_dump(struct neurite_data_s *nd)
+static bool cfg_set(const char *str, const char *buf, size_t size)
 {
-	File configFile = SPIFFS.open(NEURITE_CFG_PATH, "r");
+	struct neurite_data_s *nd = &g_nd;
+	if (!buf || !str) {
+		log_warn("invalid pointer!\n\r");
+		return false;
+	}
+	StaticJsonBuffer<NEURITE_CFG_SIZE> json_buf;
+	JsonObject& json = json_buf.parseObject((const char *)nd->cfg.json_buf);
+	if (!json.success()) {
+		log_err("parse failed\n\r");
+		return false;
+	}
+	json[str] = buf;
+	json.printTo(nd->cfg.json_buf, NEURITE_CFG_SIZE);
+	//log_dbg("'%s': %s\n\r", str, buf);
+	return true;
+}
+
+static bool cfg_save(const char *file)
+{
+	struct neurite_data_s *nd = &g_nd;
+	if (!file) {
+		log_warn("invalid pointer!\n\r");
+		return false;
+	}
+	StaticJsonBuffer<NEURITE_CFG_SIZE> json_buf;
+	JsonObject& json = json_buf.parseObject((const char *)nd->cfg.json_buf);
+	if (!json.success()) {
+		log_err("parse failed\n\r");
+		return false;
+	}
+	File configFile = SPIFFS.open(file, "w");
 	if (!configFile) {
 		log_err("open failed\n\r");
-		return;
+		return false;
+	} else {
+		log_dbg("open %s successfully\n\r", file);
 	}
-	log_dbg("%s:\n\r", NEURITE_CFG_PATH);
-	while (configFile.available())
-		LOG_SERIAL.write(configFile.read());
-	LOG_SERIAL.println();
+	size_t size = json.printTo(configFile);
+	log_dbg("wrote %d bytes\n\r", size);
 	configFile.close();
+	file_dump(file);
+	return true;
 }
 
-static bool cfg_load(struct neurite_data_s *nd)
+static bool cfg_load(const char *file)
 {
-	File configFile = SPIFFS.open(NEURITE_CFG_PATH, "r");
+	struct neurite_data_s *nd = &g_nd;
+	if (!file) {
+		log_warn("invalid pointer!\n\r");
+		return false;
+	}
+	File configFile = SPIFFS.open(file, "r");
 	if (!configFile) {
 		log_err("open failed\n\r");
 		return false;
@@ -230,95 +302,39 @@ static bool cfg_load(struct neurite_data_s *nd)
 		configFile.close();
 		return false;
 	}
-	size = configFile.readBytes(cfg_buf, size);
-	log_info("config file size: %d\n\r", size);
+	__bzero(nd->cfg.json_buf, NEURITE_CFG_SIZE);
+	size = configFile.readBytes(nd->cfg.json_buf, size);
+	log_info("load %s size: %d\n\r", file, size);
 	configFile.close();
-	cfg_file_dump(nd);
+	cfg_dump();
 	return true;
 }
 
-static int cfg_load_sync(struct neurite_data_s *nd)
+static bool cfg_dump(void)
 {
+	struct neurite_data_s *nd = &g_nd;
 	StaticJsonBuffer<NEURITE_CFG_SIZE> json_buf;
-	log_dbg("in\n\r");
-	if (!cfg_load(nd)) {
-		log_err("load cfg failed\n\r");
-		return false;
-	}
-	JsonObject& json = json_buf.parseObject(cfg_buf);
+	JsonObject& json = json_buf.parseObject((const char *)nd->cfg.json_buf);
 	if (!json.success()) {
-		log_err("parse cfg failed\n\r");
+		log_err("parse failed\n\r");
 		return false;
 	}
-	const char *ssid = json["ssid"];
-	const char *psk = json["psk"];
-	const char *topic_to = json["topic_to"];
-	const char *topic_from = json["topic_from"];
-	if (ssid) {
-		log_dbg("loaded ssid: %s\n\r", ssid);
-		strncpy(nd->cfg.ssid, ssid, sizeof(nd->cfg.ssid));
-	}
-	if (psk) {
-		log_dbg("loaded psk: %s\n\r", psk);
-		strncpy(nd->cfg.psk, psk, sizeof(nd->cfg.psk));
-	}
-	if (topic_to) {
-		log_dbg("loaded topic_to: %s\n\r", topic_to);
-		strncpy(nd->cfg.topic_to, topic_to, sizeof(nd->cfg.topic_to));
-	}
-	if (topic_from) {
-		log_dbg("loaded topic_from: %s\n\r", topic_from);
-		strncpy(nd->cfg.topic_from, topic_from, sizeof(nd->cfg.topic_from));
-	}
-	cfg_run_dump(nd);
-}
-
-static bool cfg_save_sync(struct neurite_data_s *nd)
-{
-	StaticJsonBuffer<NEURITE_CFG_SIZE> json_buf;
-	JsonObject& json = json_buf.createObject();
-
-	cfg_run_dump(nd);
-
-	json["ssid"] = nd->cfg.ssid;
-	json["psk"] = nd->cfg.psk;
-	json["topic_to"] = nd->cfg.topic_to;
-	json["topic_from"] = nd->cfg.topic_from;
-
-	File configFile = SPIFFS.open(NEURITE_CFG_PATH, "w");
-	if (!configFile) {
-		log_err("open failed\n\r");
-		return false;
-	} else {
-		log_dbg("open successfully\n\r");
-	}
-	size_t size = json.printTo(configFile);
-	log_dbg("wrote %d bytes\n\r", size);
-	configFile.close();
-
-	cfg_file_dump(nd);
+	log_dbg("");
+	json.printTo(LOG_SERIAL);
+	LOG_SERIAL.println();
 	return true;
 }
 
 static bool cfg_validate(struct neurite_data_s *nd)
 {
-	if (!cfg_load(nd)) {
+	if (!nd->cfg.load(NEURITE_CFG_PATH)) {
 		log_err("load cfg failed\n\r");
 		return false;
 	}
-	StaticJsonBuffer<NEURITE_CFG_SIZE> json_buf;
-	JsonObject& json = json_buf.parseObject(cfg_buf);
-	if (!json.success()) {
-		log_err("parse cfg failed\n\r");
-		return false;
-	}
-	const char *ssid = json["ssid"];
-	const char *psk = json["psk"];
-	log_dbg("loaded ssid: %s\n\r", ssid);
-	log_dbg("loaded psk: %s\n\r", psk);
-
+	char ssid[NEURITE_SSID_LEN] = {0};
+	nd->cfg.get("ssid", ssid, NEURITE_SSID_LEN);
 	/* FIXME How if the real SSID just equals to SSID1? */
-	if (!ssid || (strcmp(ssid, SSID1) == 0)) {
+	if (strcmp(ssid, SSID1) == 0) {
 		log_warn("no ssid cfg\n\r");
 		return false;
 	}
@@ -329,15 +345,18 @@ static bool cfg_validate(struct neurite_data_s *nd)
 
 static void wifi_connect(struct neurite_data_s *nd)
 {
-	log_dbg("Connecting to ");
-	LOG_SERIAL.println(nd->cfg.ssid);
+	char ssid[NEURITE_SSID_LEN] = {0};
+	char psk[NEURITE_PSK_LEN] = {0};
+	nd->cfg.get("ssid", ssid, NEURITE_SSID_LEN);
+	nd->cfg.get("psk", psk, NEURITE_PSK_LEN);
+	log_dbg("Connecting to %s <%s>\n\r", ssid, psk);
 	WiFi.mode(WIFI_STA);
 	WiFi.hostname(nd->uid);
 #ifdef NEURITE_ENABLE_WIFIMULTI
-	WiFiMulti.addAP(nd->cfg.ssid, nd->cfg.psk);
+	WiFiMulti.addAP(ssid, psk);
 	WiFiMulti.addAP(SSID2, PSK2);
 #else
-	WiFi.begin(nd->cfg.ssid, nd->cfg.psk);
+	WiFi.begin(ssid, psk);
 #endif
 }
 
@@ -348,24 +367,16 @@ static inline bool wifi_check_status(struct neurite_data_s *nd)
 
 static bool config_process(struct neurite_data_s *nd, char *token, char *msg, uint32_t size)
 {
+	char value[NEURITE_CFG_ITEM_LEN];
 	if (token == NULL) {
-		log_dbg("hit config\n\r");
-	} else if (strcmp(token, "ssid") == 0) {
-		log_dbg("hit config: ssid\n\r");
-		strncpy(nd->cfg.ssid, msg, NEURITE_SSID_LEN);
-	} else if (strcmp(token, "psk") == 0) {
-		log_dbg("hit config: psk\n\r");
-		strncpy(nd->cfg.psk, msg, NEURITE_PSK_LEN);
-	} else if (strcmp(token, "topic_to") == 0) {
-		log_dbg("hit config: topic_to\n\r");
-		strncpy(nd->cfg.topic_to, msg, MQTT_TOPIC_LEN);
-	} else if (strcmp(token, "topic_from") == 0) {
-		log_dbg("hit config: topic_from\n\r");
-		strncpy(nd->cfg.topic_from, msg, MQTT_TOPIC_LEN);
+		log_dbg("hit config, nothing\n\r");
 	} else {
-		log_warn("hit config: %s (no handler)\n\r", token);
+		log_dbg("hit config: %s\n\r", token);
+		__bzero(value, NEURITE_CFG_ITEM_LEN);
+		strncpy(value, msg, NEURITE_CFG_ITEM_LEN);
+		nd->cfg.set(token, value, NEURITE_CFG_ITEM_LEN);
 	}
-	cfg_save_sync(nd);
+	nd->cfg.save(NEURITE_CFG_PATH);
 	return true;
 }
 
@@ -412,7 +423,9 @@ static void mqtt_callback(char *topic, byte *payload, unsigned int length)
 			log_warn("unsupported %s, leave to user\n\r", token);
 		}
 	}
-	if (strcmp(topic, nd->cfg.topic_from) == 0) {
+	char topic_from[MQTT_TOPIC_LEN] = {0};
+	nd->cfg.get("topic_from", topic_from, MQTT_TOPIC_LEN);
+	if (strcmp(topic, topic_from) == 0) {
 		for (int i = 0; i < length; i++)
 			CMD_SERIAL.print((char)payload[i]);
 		/* FIXME here follows '\r' and '\n' */
@@ -537,8 +550,11 @@ static void cmd_completed_cb(struct cmd_parser_s *cp)
 	struct neurite_data_s *nd = &g_nd;
 	dbg_assert(cp);
 	if (cp->data_len > 0) {
-		if (nd->mqtt_connected)
-			mqtt_cli.publish(nd->cfg.topic_to, cp->buf);
+		if (nd->mqtt_connected) {
+			char topic_to[MQTT_TOPIC_LEN] = {0};
+			nd->cfg.get("topic_to", topic_to, MQTT_TOPIC_LEN);
+			mqtt_cli.publish(topic_to, cp->buf);
+		}
 		log_dbg("msg %slaunched(len %d): %s\n\r",
 			nd->mqtt_connected?"":"not ", cp->data_len, cp->buf);
 	}
@@ -638,12 +654,24 @@ static void cfg_init(struct neurite_data_s *nd)
 	log_dbg("uid: %s\n\r", nd->uid);
 	sprintf(nd->topic_private, "%s/%s/#", TOPIC_HEADER, nd->uid);
 	log_dbg("topic_private: %s\n\r", nd->topic_private);
-	sprintf(nd->cfg.topic_to, "%s", TOPIC_TO_DEFAULT);
-	log_dbg("topic_to: %s\n\r", nd->cfg.topic_to);
-	sprintf(nd->cfg.topic_from, "%s", TOPIC_FROM_DEFAULT);
-	log_dbg("topic_from: %s\n\r", nd->cfg.topic_from);
-	sprintf(nd->cfg.ssid, "%s", SSID1);
-	sprintf(nd->cfg.psk, "%s", PSK1);
+
+	nd->cfg.get = cfg_get;
+	nd->cfg.set = cfg_set;
+	nd->cfg.save = cfg_save;
+	nd->cfg.load = cfg_load;
+	nd->cfg.dump = cfg_dump;
+
+	StaticJsonBuffer<NEURITE_CFG_SIZE> json_buf;
+	JsonObject& json = json_buf.createObject();
+	if (!json.success()) {
+		log_err("create failed\n\r");
+		return;
+	}
+	json["ssid"] = SSID1;
+	json["psk"] = PSK1;
+	json["topic_to"] = TOPIC_TO_DEFAULT;
+	json["topic_from"] = TOPIC_FROM_DEFAULT;
+	json.printTo(nd->cfg.json_buf, NEURITE_CFG_SIZE);
 }
 
 static void handleNotFound(void)
@@ -881,7 +909,7 @@ static void handleSave(void)
 					 server->arg(i).length(), NEURITE_SSID_LEN);
 				goto err_handle_save;
 			} else {
-				strncpy(nd->cfg.ssid, server->arg(i).c_str(), NEURITE_SSID_LEN);
+				nd->cfg.set("ssid", server->arg(i).c_str(), NEURITE_SSID_LEN);
 			}
 		} else if (server->argName(i).equals("password")) {
 			if (server->arg(i).length() > NEURITE_PSK_LEN) {
@@ -889,14 +917,14 @@ static void handleSave(void)
 					 server->arg(i).length(), NEURITE_PSK_LEN);
 				goto err_handle_save;
 			} else {
-				strncpy(nd->cfg.psk, server->arg(i).c_str(), NEURITE_PSK_LEN);
+				nd->cfg.set("psk", server->arg(i).c_str(), NEURITE_PSK_LEN);
 			}
 		} else {
 			log_warn("%s not handled\n\r", server->arg(i).c_str());
 		}
 	}
 	message += "Jolly good config!\n";
-	cfg_save_sync(nd);
+	nd->cfg.save(NEURITE_CFG_PATH);
 	server->send(200, "text/plain", message);
 	message = String();
 	log_dbg("out ok\n\r");
@@ -1079,16 +1107,21 @@ inline void neurite_worker(void)
 					mqtt_connect(nd);
 				break;
 			}
-
 			nd->mqtt_connected = true;
-			mqtt_cli.subscribe(nd->cfg.topic_from);
-			log_info("subscribe: %s\n\r", nd->cfg.topic_from);
+
+			char topic_from[MQTT_TOPIC_LEN];
+			nd->cfg.get("topic_from", topic_from, MQTT_TOPIC_LEN);
+			char topic_to[MQTT_TOPIC_LEN];
+			nd->cfg.get("topic_to", topic_to, MQTT_TOPIC_LEN);
+
+			mqtt_cli.subscribe(topic_from);
+			log_info("subscribe: %s\n\r", topic_from);
 			mqtt_cli.subscribe(nd->topic_private);
 			log_info("subscribe: %s\n\r", nd->topic_private);
 			char payload_buf[32];
 			dbg_assert(payload_buf);
 			sprintf(payload_buf, "checkin: %s", nd->uid);
-			mqtt_cli.publish(nd->cfg.topic_to, (const char *)payload_buf);
+			mqtt_cli.publish(topic_to, (const char *)payload_buf);
 
 			start_ticker_led_breath(nd);
 			start_ticker_mon(nd);
@@ -1130,7 +1163,6 @@ void neurite_init(void)
 	cfg_init(nd);
 
 	if (cfg_validate(nd)) {
-		cfg_load_sync(nd);
 		b_cfg_ready = true;
 		log_dbg("cfg ready\n\r");
 	} else {

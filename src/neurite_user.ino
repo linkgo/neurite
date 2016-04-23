@@ -138,7 +138,9 @@ void neurite_user_mqtt(char *topic, byte *payload, unsigned int length)
 			log_dbg("hit io, payload: %c\n\r", payload[0]);
 		}
 	}
-	if (strcmp(topic, nd->cfg.topic_from) == 0) {
+	char topic_from[MQTT_TOPIC_LEN] = {0};
+	nd->cfg.get("topic_from", topic_from, MQTT_TOPIC_LEN);
+	if (strcmp(topic, topic_from) == 0) {
 	}
 }
 
@@ -152,10 +154,14 @@ void neurite_user_button(int time_ms)
 			static int val = 0;
 			char buf[4];
 			val = 1 - val;
+
+			char topic_to[MQTT_TOPIC_LEN] = {0};
+			nd->cfg.get("topic_to", topic_to, MQTT_TOPIC_LEN);
+
 			if (val)
-				mqtt_cli.publish(nd->cfg.topic_to, "light on");
+				mqtt_cli.publish(topic_to, "light on");
 			else
-				mqtt_cli.publish(nd->cfg.topic_to, "light off");
+				mqtt_cli.publish(topic_to, "light off");
 		}
 	}
 }

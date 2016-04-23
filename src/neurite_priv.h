@@ -29,8 +29,10 @@
 #define NEURITE_CFG_SIZE	1024
 #define NEURITE_CMD_BUF_SIZE	256
 #define NEURITE_UID_LEN		32
-#define NEURITE_SSID_LEN	32
-#define NEURITE_PSK_LEN		32
+#define NEURITE_SSID_LEN	64
+#define NEURITE_PSK_LEN		64
+
+#define NEURITE_CFG_ITEM_LEN	64
 
 #define MQTT_TOPIC_LEN		64
 #define MQTT_MSG_LEN		256
@@ -50,11 +52,15 @@ struct cmd_parser_s {
 };
 
 struct neurite_cfg_s {
-	char topic_to[MQTT_TOPIC_LEN];
-	char topic_from[MQTT_TOPIC_LEN];
-	char ssid[NEURITE_SSID_LEN];
-	char psk[NEURITE_PSK_LEN];
+	char json_buf[NEURITE_CFG_SIZE];
+	bool (*get)(const char *str, char *buf, size_t size);
+	bool (*set)(const char *str, const char *buf, size_t size);
+	bool (*save)(const char *file);
+	bool (*load)(const char *file);
+	bool (*dump)(void);
 };
+
+typedef char *(*p_get_cfg)(char *str);
 
 struct neurite_data_s {
 	bool wifi_connected;
