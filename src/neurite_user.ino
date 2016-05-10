@@ -70,7 +70,8 @@ extern struct neurite_data_s g_nd;
  *     3. Peripherals
  */
 
-#define USER_LOOP_INTERVAL 1000
+#define USER_LOOP_INTERVAL	10
+#define USER_BIG_BUTTON		14
 
 static bool b_user_loop_run = true;
 
@@ -86,9 +87,46 @@ static inline void update_user_state(int st)
 	user_st = st;
 }
 
+static void release_handler(int dts)
+{
+	struct neurite_data_s *nd = &g_nd;
+	log_dbg("button pressed for %d ms\n\r", dts);
+	if (dts > 50) {
+		if (nd->mqtt_connected) {
+			char topic_to[MQTT_TOPIC_LEN] = {0};
+			nd->cfg.get("topic_to", topic_to, MQTT_TOPIC_LEN);
+				mqtt_cli.publish(topic_to, "egg pain!");
+		}
+	}
+}
+
+static void hold_handler(int dts)
+{
+	if (dts > 5000) {
+		log_info("%s\n\r");
+	}
+}
+
 void neurite_user_worker(void)
 {
-	/* add user stuff here */
+	static int ts = 0;
+	static int r_curr = HIGH;
+	static int r_prev = HIGH;
+	int dts;
+	r_curr = digitalRead(USER_BIG_BUTTON);
+	if ((r_curr == LOW) && (r_prev == HIGH)) {
+		ts = millis();
+		r_prev = r_curr;
+	} else {
+		if (r_prev == LOW) {
+			dts = millis() - ts;
+			r_prev = r_curr;
+			if (r_curr == HIGH)
+				release_handler(dts);
+			else
+				hold_handler(dts);
+		}
+	}
 }
 
 void neurite_user_loop(void)
@@ -123,6 +161,7 @@ void neurite_user_hold(void)
 /* will be called after neurite system setup */
 void neurite_user_setup(void)
 {
+	pinMode(USER_BIG_BUTTON, INPUT);
 	log_dbg("\n\r");
 }
 
