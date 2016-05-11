@@ -43,6 +43,7 @@
 #include <Ticker.h>
 #include <ArduinoJson.h>
 #include "FS.h"
+#include <Grove_LED_Bar.h>
 
 extern "C" {
 #include "osapi.h"
@@ -71,6 +72,7 @@ extern struct neurite_data_s g_nd;
  */
 
 #define USER_LOOP_INTERVAL 1000
+Grove_LED_Bar bar(13, 14, 1); // Clock pin, Data pin, Orientation
 
 static bool b_user_loop_run = true;
 
@@ -124,6 +126,8 @@ void neurite_user_hold(void)
 void neurite_user_setup(void)
 {
 	log_dbg("\n\r");
+	bar.begin();
+	bar.setBits(0x0);
 }
 
 /* called once on mqtt message received */
@@ -141,6 +145,19 @@ void neurite_user_mqtt(char *topic, byte *payload, unsigned int length)
 	char topic_from[MQTT_TOPIC_LEN] = {0};
 	nd->cfg.get("topic_from", topic_from, MQTT_TOPIC_LEN);
 	if (strcmp(topic, topic_from) == 0) {
+		if (payload[0] == 'b' &&
+		    payload[1] == 'a' &&
+		    payload[2] == 'r' &&
+		    payload[3] == ':' &&
+		    payload[4] == ' ') {
+			int val = atoi((const char *)&payload[5]);
+			if (!val) {
+				log_warn("invalid bar arg\n\r");
+			} else {
+				log_info("bar: %d\n\r", val);
+				bar.setBits(val);
+			}
+		}
 	}
 }
 
