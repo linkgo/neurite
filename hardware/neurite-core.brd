@@ -176,8 +176,8 @@
 <text x="16.15" y="0.75" size="1.27" layer="21" font="vector" ratio="16" rot="R90">Neurite</text>
 <text x="15.9" y="9.95" size="1.27" layer="22" font="vector" ratio="16" rot="MR90">linkgo.io</text>
 <text x="5.8" y="-7.5" size="1.27" layer="48" font="vector" ratio="16" rot="R90">1.GND</text>
-<text x="8.5" y="-7.5" size="1.27" layer="48" font="vector" ratio="16" rot="R90">2.TXD</text>
-<text x="11" y="-7.5" size="1.27" layer="48" font="vector" ratio="16" rot="R90">3.RXD</text>
+<text x="8.5" y="-7.5" size="1.27" layer="48" font="vector" ratio="16" rot="R90">2.RXD</text>
+<text x="11" y="-7.5" size="1.27" layer="48" font="vector" ratio="16" rot="R90">3.TXD</text>
 <text x="13.5" y="-7.5" size="1.27" layer="48" font="vector" ratio="16" rot="R90">4.VCC</text>
 <text x="13.4" y="22.1" size="1.27" layer="48" font="vector" ratio="16" rot="R90">5.ADC</text>
 <text x="10.9" y="22.1" size="1.27" layer="48" font="vector" ratio="16" rot="R90">6.GPIO12</text>
