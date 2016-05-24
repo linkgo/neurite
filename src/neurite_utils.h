@@ -37,7 +37,7 @@
 #define PSK1			"psk1"
 #define SSID2			"ssid2"
 #define PSK2			"psk2"
-#define MQTT_SERVER		"accrete.org"
+#define MQTT_SERVER		"mqtt.0x61.me"
 
 /*
  * Features
