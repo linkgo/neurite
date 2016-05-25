@@ -1080,6 +1080,7 @@ inline void neurite_worker(void)
 	struct neurite_data_s *nd = &g_nd;
 	switch (worker_st) {
 		case WORKER_ST_0:
+			stop_ticker_mon(nd);
 			start_ticker_led_blink(nd);
 			wifi_connect(nd);
 			update_worker_state(WORKER_ST_1);
