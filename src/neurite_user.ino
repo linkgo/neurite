@@ -42,6 +42,7 @@
 #include <PubSubClient.h>
 #include <Ticker.h>
 #include <ArduinoJson.h>
+#include <Servo.h>
 #include "FS.h"
 
 extern "C" {
@@ -70,7 +71,15 @@ extern struct neurite_data_s g_nd;
  *     3. Peripherals
  */
 
-#define USER_LOOP_INTERVAL 1000
+#define USER_LOOP_INTERVAL 25
+#define USER_SMOOTH_SERVO
+
+#ifdef USER_SMOOTH_SERVO
+static bool b_servo_action = false;
+static int target_degree = 90;
+#endif
+
+Servo myservo;
 
 static bool b_user_loop_run = true;
 
@@ -89,6 +98,14 @@ static inline void update_user_state(int st)
 void neurite_user_worker(void)
 {
 	/* add user stuff here */
+	if (b_servo_action) {
+		if (target_degree < myservo.read())
+			myservo.write(myservo.read() - 1);
+		else if (target_degree > myservo.read())
+			myservo.write(myservo.read() + 1);
+		else
+			b_servo_action = false;
+	}
 }
 
 void neurite_user_loop(void)
@@ -117,6 +134,7 @@ void neurite_user_loop(void)
 void neurite_user_hold(void)
 {
 	log_dbg("\n\r");
+	myservo.detach();
 	update_user_state(USER_ST_0);
 }
 
@@ -124,6 +142,7 @@ void neurite_user_hold(void)
 void neurite_user_setup(void)
 {
 	log_dbg("\n\r");
+	myservo.attach(13);
 }
 
 /* called once on mqtt message received */
@@ -142,6 +161,33 @@ void neurite_user_mqtt(char *topic, byte *payload, unsigned int length)
 	nd->cfg.get("topic_from", topic_from, MQTT_TOPIC_LEN);
 	if (strcmp(topic, topic_from) == 0) {
 	}
+	char *token = NULL;
+	char *msg = (char *)malloc(MQTT_MSG_LEN);
+	__bzero(msg, sizeof(msg));
+	for (int i = 0; i < length; i++)
+		msg[i] = payload[i];
+	msg[length] = '\0';
+	token = strtok(msg, " ");
+	if (token == NULL) {
+		log_warn("no payload, ignore\n\r");
+	} else if (strcmp(token, "servo:") == 0) {
+		token = strtok(NULL, "\0");
+		if (token) {
+			int val = atoi(token);
+			log_dbg("hit servo, msg(value): %s(%d)\n\r", token, val);
+#ifdef USER_SMOOTH_SERVO
+			if (!b_servo_action) {
+				b_servo_action = true;
+				if (val >=0 && val <= 180)
+					target_degree = val;
+			}
+#else
+			myservo.write(val);
+#endif
+		}
+	} else {
+	}
+	free(msg);
 }
 
 /* time_ms: the time delta in ms of button press/release cycle. */
