@@ -70,7 +70,7 @@ extern struct neurite_data_s g_nd;
  *     3. Peripherals
  */
 
-#define USER_LOOP_INTERVAL 1000
+#define USER_LOOP_INTERVAL 100
 
 static bool b_user_loop_run = true;
 
@@ -89,6 +89,17 @@ static inline void update_user_state(int st)
 void neurite_user_worker(void)
 {
 	/* add user stuff here */
+	struct neurite_data_s *nd = &g_nd;
+	static int adc_prev = 0;
+	int adc = analogRead(A0);
+	if (abs(adc - adc_prev) > 10) {
+		adc_prev = adc;
+		char buf[32];
+		__bzero(buf, sizeof(buf));
+		sprintf(buf, "adc: %d", analogRead(A0));
+		if (nd->mqtt_connected)
+			mqtt_cli.publish(nd->cfg.topic_to, (const char *)buf);
+	}
 }
 
 void neurite_user_loop(void)
