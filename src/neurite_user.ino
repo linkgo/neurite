@@ -97,8 +97,11 @@ void neurite_user_worker(void)
 		char buf[32];
 		__bzero(buf, sizeof(buf));
 		sprintf(buf, "adc: %d", analogRead(A0));
-		if (nd->mqtt_connected)
-			mqtt_cli.publish(nd->cfg.topic_to, (const char *)buf);
+		if (nd->mqtt_connected) {
+			char topic_to[MQTT_TOPIC_LEN] = {0};
+			nd->cfg.get("topic_to", topic_to, MQTT_TOPIC_LEN);
+			mqtt_cli.publish(topic_to, (const char *)buf);
+		}
 	}
 }
 
