@@ -27,6 +27,7 @@
 
 #define NEURITE_CFG_PATH	"/config.json"
 #define NEURITE_CFG_SIZE	1024
+#define NEURITE_CFG_ITEM_SIZE	64
 #define NEURITE_CMD_BUF_SIZE	256
 #define NEURITE_UID_LEN		32
 #define NEURITE_SSID_LEN	64
