@@ -327,10 +327,7 @@ static bool cfg_dump(void)
 
 static bool cfg_validate(struct neurite_data_s *nd)
 {
-	if (!nd->cfg.load(NEURITE_CFG_PATH)) {
-		log_err("load cfg failed\n\r");
-		return false;
-	}
+	log_dbg("in\n\r");
 	char ssid[NEURITE_SSID_LEN] = {0};
 	nd->cfg.get("ssid", ssid, NEURITE_SSID_LEN);
 	/* FIXME How if the real SSID just equals to SSID1? */
@@ -661,17 +658,31 @@ static void cfg_init(struct neurite_data_s *nd)
 	nd->cfg.load = cfg_load;
 	nd->cfg.dump = cfg_dump;
 
-	StaticJsonBuffer<NEURITE_CFG_SIZE> json_buf;
-	JsonObject& json = json_buf.createObject();
-	if (!json.success()) {
-		log_err("create failed\n\r");
-		return;
+	if (!nd->cfg.load(NEURITE_CFG_PATH)) {
+		log_warn("load cfg failed, try to create\n\r");
+		StaticJsonBuffer<NEURITE_CFG_SIZE> json_buf;
+		JsonObject& json = json_buf.createObject();
+		if (!json.success()) {
+			log_fatal("create failed\n\r");
+			return;
+		}
+		json["ssid"] = SSID1;
+		json["psk"] = PSK1;
+		json["topic_to"] = TOPIC_TO_DEFAULT;
+		json["topic_from"] = TOPIC_FROM_DEFAULT;
+		json.printTo(nd->cfg.json_buf, NEURITE_CFG_SIZE);
+	} else {
+		char tmp[NEURITE_CFG_ITEM_SIZE];
+		if (!nd->cfg.get("ssid", tmp, NEURITE_CFG_ITEM_SIZE))
+			nd->cfg.set("ssid", SSID1, NEURITE_SSID_LEN);
+		if (!nd->cfg.get("psk", tmp, NEURITE_CFG_ITEM_SIZE))
+			nd->cfg.set("psk", PSK1, NEURITE_PSK_LEN);
+		if (!nd->cfg.get("topic_to", tmp, NEURITE_CFG_ITEM_SIZE))
+			nd->cfg.set("topic_to", TOPIC_TO_DEFAULT, MQTT_TOPIC_LEN);
+		if (!nd->cfg.get("topic_from", tmp, NEURITE_CFG_ITEM_SIZE))
+			nd->cfg.set("topic_from", TOPIC_FROM_DEFAULT, MQTT_TOPIC_LEN);
 	}
-	json["ssid"] = SSID1;
-	json["psk"] = PSK1;
-	json["topic_to"] = TOPIC_TO_DEFAULT;
-	json["topic_from"] = TOPIC_FROM_DEFAULT;
-	json.printTo(nd->cfg.json_buf, NEURITE_CFG_SIZE);
+	nd->cfg.save(NEURITE_CFG_PATH);
 }
 
 static void handleNotFound(void)
