@@ -145,7 +145,7 @@ void neurite_user_worker(void)
 	json += "}";
 
 	if (nd->mqtt_connected) {
-		mqtt_cli.publish(nd->cfg.topic_to, (const char *)json.c_str());
+		mqtt_cli.publish(topic_to, (const char *)json.c_str());
 #ifdef NEURITE_ENABLE_USER_ONESHOT
 		b_accomplished = true;
 #endif
@@ -157,6 +157,10 @@ void neurite_user_loop(void)
 {
 	struct neurite_data_s *nd = &g_nd;
 	static uint32_t prev_time = 0;
+	char worktime_str[16] = {0};
+	char sleeptime_str[16] = {0};
+	uint32_t worktime;
+	uint32_t sleeptime;
 	if (b_user_loop_run == false)
 		return;
 	if ((millis() - prev_time) < USER_LOOP_INTERVAL)
@@ -169,10 +173,18 @@ void neurite_user_loop(void)
 			break;
 		case USER_ST_1:
 #ifdef NEURITE_ENABLE_USER_POWERSAVE
-			if (millis() > nd->cfg.worktime) {
-				log_info("ready to sleep %u ms\r\n", nd->cfg.sleeptime);
-				ESP.deepSleep((nd->cfg.sleeptime)*1000UL, RF_DEFAULT);
-				while(1);
+			nd->cfg.get("worktime", worktime_str, 16);
+			nd->cfg.get("sleeptime", sleeptime_str, 16);
+			worktime = atoi(worktime_str);
+			sleeptime = atoi(sleeptime_str);
+			if (worktime <= 0 || sleeptime <= 0) {
+				log_warn("illegal worktime %s, or sleeptime %s\n\r", worktime_str, sleeptime_str);
+			} else {
+				if (millis() > worktime) {
+					log_info("ready to sleep %u ms\r\n", sleeptime);
+					ESP.deepSleep((sleeptime)*1000UL, RF_DEFAULT);
+					while(1);
+				}
 			}
 #endif
 #ifdef NEURITE_ENABLE_USER_ONESHOT
