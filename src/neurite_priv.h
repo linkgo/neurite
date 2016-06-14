@@ -38,7 +38,7 @@
 #define MQTT_TOPIC_LEN		64
 #define MQTT_MSG_LEN		256
 
-#define NEURITE_LED		5
+#define NEURITE_LED		13
 #define NEURITE_BUTTON		0
 
 struct cmd_parser_s;
