@@ -1,0 +1,99 @@
+From 4b2d5539d02df7d018a0205b311b4a6132ce8dff Mon Sep 17 00:00:00 2001
+From: Librae <librae8226@gmail.com>
+Date: Sun, 19 Jun 2016 00:36:26 +0800
+Subject: [PATCH] enable timer in both us and ms
+
+---
+ cores/esp8266/core_esp8266_main.cpp |  1 +
+ cores/esp8266/user_config.h         |  2 +-
+ libraries/Ticker/Ticker.cpp         | 15 +++++++++++++++
+ libraries/Ticker/Ticker.h           | 14 ++++++++++++++
+ 4 files changed, 31 insertions(+), 1 deletion(-)
+
+diff --git a/cores/esp8266/core_esp8266_main.cpp b/cores/esp8266/core_esp8266_main.cpp
+index 0c1eb02..36ff65f 100755
+--- a/cores/esp8266/core_esp8266_main.cpp
++++ b/cores/esp8266/core_esp8266_main.cpp
+@@ -138,6 +138,7 @@ void init_done() {
+ extern "C" void user_init(void) {
+     struct rst_info *rtc_info_ptr = system_get_rst_info();
+     memcpy((void *) &resetInfo, (void *) rtc_info_ptr, sizeof(resetInfo));
++    system_timer_reinit();
+ 
+     uart_div_modify(0, UART_CLK_FREQ / (115200));
+ 
+diff --git a/cores/esp8266/user_config.h b/cores/esp8266/user_config.h
+index 8b13789..f60e475 100755
+--- a/cores/esp8266/user_config.h
++++ b/cores/esp8266/user_config.h
+@@ -1 +1 @@
+-
++#define USE_US_TIMER
+diff --git a/libraries/Ticker/Ticker.cpp b/libraries/Ticker/Ticker.cpp
+index b348798..a21ed49 100755
+--- a/libraries/Ticker/Ticker.cpp
++++ b/libraries/Ticker/Ticker.cpp
+@@ -59,6 +59,21 @@ void Ticker::_attach_ms(uint32_t milliseconds, bool repeat, callback_with_arg_t
+ 	os_timer_arm(_timer, milliseconds, (repeat)?REPEAT:ONCE);
+ }
+ 
++void Ticker::_attach_us(uint32_t microseconds, bool repeat, callback_with_arg_t callback, uint32_t arg)
++{
++	if (_timer)
++	{
++		os_timer_disarm(_timer);
++	}
++	else
++	{
++		_timer = new ETSTimer;
++	}
++
++	os_timer_setfn(_timer, reinterpret_cast<ETSTimerFunc*>(callback), reinterpret_cast<void*>(arg));
++	os_timer_arm_us(_timer, microseconds, (repeat)?REPEAT:ONCE);
++}
++
+ void Ticker::detach()
+ {
+ 	if (!_timer)
+diff --git a/libraries/Ticker/Ticker.h b/libraries/Ticker/Ticker.h
+index ea3f59f..fa1a738 100755
+--- a/libraries/Ticker/Ticker.h
++++ b/libraries/Ticker/Ticker.h
+@@ -36,6 +36,7 @@ public:
+ 	~Ticker();
+ 	typedef void (*callback_t)(void);
+ 	typedef void (*callback_with_arg_t)(void*);
++	void _attach_us(uint32_t microseconds, bool repeat, callback_with_arg_t callback, uint32_t arg);
+ 
+ 	void attach(float seconds, callback_t callback)
+ 	{
+@@ -47,6 +48,11 @@ public:
+ 		_attach_ms(milliseconds, true, reinterpret_cast<callback_with_arg_t>(callback), 0);
+ 	}
+ 
++	void attach_us(uint32_t microseconds, callback_t callback)
++	{
++		_attach_us(microseconds, true, reinterpret_cast<callback_with_arg_t>(callback), 0);
++	}
++
+ 	template<typename TArg>
+ 	void attach(float seconds, void (*callback)(TArg), TArg arg)
+ 	{
+@@ -66,6 +72,14 @@ public:
+ 		_attach_ms(milliseconds, true, reinterpret_cast<callback_with_arg_t>(callback), arg32);
+ 	}
+ 
++	template<typename TArg>
++	void attach_us(uint32_t microseconds, void (*callback)(TArg), TArg arg)
++	{
++		static_assert(sizeof(TArg) <= sizeof(uint32_t), "attach_us() callback argument size must be <= 4 bytes");
++		uint32_t arg32 = (uint32_t)arg;
++		_attach_us(microseconds, true, reinterpret_cast<callback_with_arg_t>(callback), arg32);
++	}
++
+ 	void once(float seconds, callback_t callback)
+ 	{
+ 		_attach_ms(seconds * 1000, false, reinterpret_cast<callback_with_arg_t>(callback), 0);
+-- 
+1.9.1
+
