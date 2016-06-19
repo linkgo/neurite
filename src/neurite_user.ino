@@ -86,9 +86,36 @@ static inline void update_user_state(int st)
 	user_st = st;
 }
 
+static int adc = 0;
 void neurite_user_worker(void)
 {
 	/* add user stuff here */
+#if 0
+	int adc = 0;
+	for (int i = 0; i < 10; i++)
+		adc += analogRead(A0);
+	adc = adc/10;
+	log_dbg("adc: %d\n\r", adc);
+#endif
+}
+
+static void ticker_audio_task(struct neurite_data_s *nd)
+{
+	//adc = analogRead(A0);
+}
+
+static Ticker ticker_audio;
+
+void stop_ticker_audio(struct neurite_data_s *nd)
+{
+	ticker_audio.detach();
+}
+
+void start_ticker_audio(struct neurite_data_s *nd)
+{
+	ticker_audio.detach();
+	stop_ticker_audio(nd);
+	ticker_audio.attach_us(125, ticker_audio_task, nd);
 }
 
 void neurite_user_loop(void)
@@ -116,14 +143,18 @@ void neurite_user_loop(void)
 /* called on critical neurite behavior such as OTA */
 void neurite_user_hold(void)
 {
+	struct neurite_data_s *nd = &g_nd;
 	log_dbg("\n\r");
 	update_user_state(USER_ST_0);
+	stop_ticker_audio(nd);
 }
 
 /* will be called after neurite system setup */
 void neurite_user_setup(void)
 {
+	struct neurite_data_s *nd = &g_nd;
 	log_dbg("\n\r");
+	start_ticker_audio(nd);
 }
 
 /* called once on mqtt message received */
