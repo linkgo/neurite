@@ -81,6 +81,7 @@ extern struct neurite_data_s g_nd;
 
 static bool b_user_loop_run = true;
 static bool b_timer = false;
+static File pcm_file;
 
 enum {
 	USER_ST_0 = 0,
@@ -121,6 +122,9 @@ static inline void toggle(uint8_t pin)
 void neurite_user_worker(void)
 {
 	/* add user stuff here */
+	if (!b_timer)
+		return;
+	b_timer = false;
 #if 0
 	static int adc = 0;
 	Wire.beginTransmission(PCF8591); // wake up PCF8591
@@ -128,41 +132,19 @@ void neurite_user_worker(void)
 	Wire.endTransmission(); // end tranmission
 	Wire.requestFrom(PCF8591, 1);
 	adc = Wire.read();
-	log_dbg("adc: %d\n\r", adc);
-#endif
-	static uint32_t prev = 0;
-	if (micros() - prev < 115)
-		return;
-	prev = micros();
-
-#if 1
-	static uint8_t i = 0;
-	i = (i == 255) ? 0 : i++;
+#else
+	uint8_t sample;
+	if (pcm_file.available()) {
+		sample = pcm_file.read();
+	} else {
+		pcm_file.seek(0, SeekSet);
+	}
 	Wire.beginTransmission(PCF8591); // wake up PCF8591
 	Wire.write(0x40); // control byte - turn on DAC (binary 1000000)
-	Wire.write(i); // value to send to DAC
+	Wire.write(sample); // value to send to DAC
 	Wire.endTransmission(); // end tranmission
 #endif
 	toggle(12);
-}
-
-static void ticker_audio_task(struct neurite_data_s *nd)
-{
-	b_timer = true;
-}
-
-static Ticker ticker_audio;
-
-void stop_ticker_audio(struct neurite_data_s *nd)
-{
-	ticker_audio.detach();
-}
-
-void start_ticker_audio(struct neurite_data_s *nd)
-{
-	ticker_audio.detach();
-	stop_ticker_audio(nd);
-	ticker_audio.attach_us(125, ticker_audio_task, nd);
 }
 
 void neurite_user_loop(void)
@@ -195,7 +177,52 @@ void neurite_user_hold(void)
 	struct neurite_data_s *nd = &g_nd;
 	log_dbg("\n\r");
 	update_user_state(USER_ST_0);
-	stop_ticker_audio(nd);
+	timer_disable();
+}
+
+ICACHE_RAM_ATTR void timer_handler(void)
+{
+#if 1
+	b_timer = true;
+#else
+	uint8_t sample;
+	if (pcm_file.available()) {
+		sample = pcm_file.read();
+	} else {
+		pcm_file.seek(0, SeekSet);
+	}
+	Wire.beginTransmission(PCF8591); // wake up PCF8591
+	Wire.write(0x40); // control byte - turn on DAC (binary 1000000)
+	Wire.write(sample); // value to send to DAC
+	Wire.endTransmission(); // end tranmission
+	toggle(12);
+#endif
+}
+
+#define TIMER1_TICKS_PER_US (APB_CLK_FREQ / 1000000L)
+
+uint32_t usToTicks(uint32_t us)
+{
+	return (TIMER1_TICKS_PER_US / 16 * us);     // converts microseconds to tick
+}
+uint32_t ticksToUs(uint32_t ticks)
+{
+	return (ticks / TIMER1_TICKS_PER_US * 16); // converts from ticks back to microseconds
+}
+
+static void timer_enable(void)
+{
+        timer1_disable();
+        timer1_isr_init();
+        timer1_attachInterrupt(timer_handler);
+        timer1_enable(TIM_DIV16, TIM_EDGE, TIM_LOOP);
+        timer1_write(usToTicks(125));
+}
+
+static void timer_disable(void)
+{
+	timer1_disable();
+	pcm_file.close();
 }
 
 /* will be called after neurite system setup */
@@ -203,10 +230,16 @@ void neurite_user_setup(void)
 {
 	struct neurite_data_s *nd = &g_nd;
 	log_dbg("\n\r");
-//	start_ticker_audio(nd);
 	Wire.begin(13, 14);
 	pinMode(12, OUTPUT);
 	digitalWrite(12, HIGH);
+
+	pcm_file = SPIFFS.open("/8k8bitpcm.pcm", "r");
+	if (!pcm_file) {
+		log_err("open failed\n\r");
+	}
+
+	timer_enable();
 }
 
 /* called once on mqtt message received */
