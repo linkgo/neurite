@@ -42,6 +42,7 @@
 #include <PubSubClient.h>
 #include <Ticker.h>
 #include <ArduinoJson.h>
+#include <Wire.h>
 #include "FS.h"
 
 extern "C" {
@@ -53,6 +54,12 @@ extern "C" {
 #include "neurite_priv.h"
 
 extern struct neurite_data_s g_nd;
+
+#define PCF8591 (0x90 >> 1) // I2C bus address
+#define ADC0 0x00 // control bytes for reading individual ADCs
+#define ADC1 0x01
+#define ADC2 0x02
+#define ADC3 0x03
 
 #ifdef NEURITE_ENABLE_USER
 /*
@@ -70,9 +77,10 @@ extern struct neurite_data_s g_nd;
  *     3. Peripherals
  */
 
-#define USER_LOOP_INTERVAL 1000
+#define USER_LOOP_INTERVAL 0
 
 static bool b_user_loop_run = true;
+static bool b_timer = false;
 
 enum {
 	USER_ST_0 = 0,
@@ -86,22 +94,61 @@ static inline void update_user_state(int st)
 	user_st = st;
 }
 
-static int adc = 0;
+void static __write8(uint8_t _addr, uint8_t reg, uint32_t value)
+{
+        Wire.beginTransmission(_addr);
+        Wire.write(reg);
+        Wire.write(value & 0xFF);
+        Wire.endTransmission();
+}
+
+uint8_t static __read8(uint8_t _addr, uint8_t reg)
+{
+        Wire.beginTransmission(_addr);
+        Wire.write(reg);
+        Wire.endTransmission();
+        Wire.requestFrom(_addr, 1);
+        return Wire.read();
+}
+
+static inline void toggle(uint8_t pin)
+{
+	static uint8_t s = HIGH;
+	s = 1 - s;
+	digitalWrite(pin, s);
+}
+
 void neurite_user_worker(void)
 {
 	/* add user stuff here */
 #if 0
-	int adc = 0;
-	for (int i = 0; i < 10; i++)
-		adc += analogRead(A0);
-	adc = adc/10;
+	static int adc = 0;
+	Wire.beginTransmission(PCF8591); // wake up PCF8591
+	Wire.write(ADC2); // control byte - read ADC0
+	Wire.endTransmission(); // end tranmission
+	Wire.requestFrom(PCF8591, 1);
+	adc = Wire.read();
 	log_dbg("adc: %d\n\r", adc);
 #endif
+	static uint32_t prev = 0;
+	if (micros() - prev < 115)
+		return;
+	prev = micros();
+
+#if 1
+	static uint8_t i = 0;
+	i = (i == 255) ? 0 : i++;
+	Wire.beginTransmission(PCF8591); // wake up PCF8591
+	Wire.write(0x40); // control byte - turn on DAC (binary 1000000)
+	Wire.write(i); // value to send to DAC
+	Wire.endTransmission(); // end tranmission
+#endif
+	toggle(12);
 }
 
 static void ticker_audio_task(struct neurite_data_s *nd)
 {
-	//adc = analogRead(A0);
+	b_timer = true;
 }
 
 static Ticker ticker_audio;
@@ -123,9 +170,11 @@ void neurite_user_loop(void)
 	static uint32_t prev_time = 0;
 	if (b_user_loop_run == false)
 		return;
+#if 0
 	if ((millis() - prev_time) < USER_LOOP_INTERVAL)
 		return;
 	prev_time = millis();
+#endif
 	switch (user_st) {
 		case USER_ST_0:
 			neurite_user_setup();
@@ -154,7 +203,10 @@ void neurite_user_setup(void)
 {
 	struct neurite_data_s *nd = &g_nd;
 	log_dbg("\n\r");
-	start_ticker_audio(nd);
+//	start_ticker_audio(nd);
+	Wire.begin(13, 14);
+	pinMode(12, OUTPUT);
+	digitalWrite(12, HIGH);
 }
 
 /* called once on mqtt message received */
