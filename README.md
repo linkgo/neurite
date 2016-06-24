@@ -5,7 +5,7 @@
 A serial to MQTT bridge, an easier way to build IoT product.
 
 ![pcb](https://raw.githubusercontent.com/linkgo/neurite/master/hardware/neurite-brd-white.png)
-![breadboard](https://raw.githubusercontent.com/linkgo/neurite/master/hardware/neurite-breadboard-small.png)
+![breadboard](http://o7spigzvd.bkt.clouddn.com/neurite-breadboard-small-fit.png)
 
 ## Contents
 - [Introduction](#introduction)
