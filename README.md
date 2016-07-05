@@ -2,7 +2,7 @@
 
 # Neurite [![Linux build status](https://travis-ci.org/linkgo/neurite.svg)](https://travis-ci.org/linkgo/neurite)
 
-A serial to MQTT bridge, an easier way to build IoT product.
+A serial to MQTT bridge, an easier way to build IoT product with esp8266 Arduino.
 
 ![pcb-n-bread](https://raw.githubusercontent.com/linkgo/neurite/master/hardware/neurite-pcb-n-bread.png)
 
@@ -26,6 +26,8 @@ Thus we are introducing Neurite, to simplify your next smart design.
 
 ### What Is It
 
+
+* Neurite is an esp8266 Arduino.
 * Neurite is a serial to MQTT bridge.
 * Neurite is a WiFi module running corresponding firmware.
 * Neurite is simply designed to be Plug-n-Play.
@@ -60,7 +62,7 @@ Thus we are introducing Neurite, to simplify your next smart design.
 **Advanced:**
 
 * Neurite supports all kinds of sensors and peripherals interfaced with SPI/I2C or GPIO
-* Neurite benefits from 3rd party libraries thanks to esp8266 Arduino, especially to [igrr](https://github.com/igrr).
+* Neurite benefits from 3rd party libraries thanks to esp8266 Arduino.
 * Neurite is fully customizable and hackable.
 
 
@@ -99,6 +101,11 @@ Advanced work flow besides above:
 ## Developer Tutorial
 
 TODO
+
+
+## Credits
+
+[igrr](https://github.com/igrr) and all the brilliant contributors for [esp8266 Arduino](https://github.com/esp8266/Arduino).
 
 
 ## License
