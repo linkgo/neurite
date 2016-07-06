@@ -14,6 +14,7 @@ A serial to MQTT bridge, an easier way to build IoT product with esp8266 Arduino
   - [How It Works](#how-it-works)
 - [User Tutorial](#user-tutorial)
 - [Developer Tutorial](#developer-tutorial)
+- [Credits](#credits)
 - [License](#license)
 
 
