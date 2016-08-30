@@ -138,30 +138,16 @@ void neurite_user_mqtt(char *topic, byte *payload, unsigned int length)
 		token = strtok(subtopic, "/");
 		if (strcmp(token, "io") == 0) {
 			log_dbg("hit io, payload: %c\n\r", payload[0]);
+			if (payload[0] == '0') {
+				digitalWrite(12, LOW);
+			} else {
+				digitalWrite(12, HIGH);
+			}
 		}
 	}
 	char topic_from[MQTT_TOPIC_LEN] = {0};
 	nd->cfg.get("topic_from", topic_from, MQTT_TOPIC_LEN);
 	if (strcmp(topic, topic_from) == 0) {
-		if (payload[0] == 'b' &&
-		    payload[1] == 'a' &&
-		    payload[2] == 'r' &&
-		    payload[3] == ':' &&
-		    payload[4] == ' ') {
-			int val = atoi((const char *)&payload[5]);
-			if (!val) {
-				log_warn("invalid bar arg\n\r");
-			} else {
-				log_info("bar: %d\n\r", val);
-				if (val % 2) {
-					log_info("pin 12 low\n\r");
-					digitalWrite(12, LOW);
-				} else {
-					log_info("pin 12 high\n\r");
-					digitalWrite(12, HIGH);
-				}
-			}
-		}
 	}
 }
 
