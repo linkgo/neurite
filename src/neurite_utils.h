@@ -37,7 +37,7 @@
 #define PSK1			"psk1"
 #define SSID2			"ssid2"
 #define PSK2			"psk2"
-#define MQTT_SERVER		"mqtt.0x61.me"
+#define MQTT_SERVER		"linkgo.io"
 
 /*
  * Features
