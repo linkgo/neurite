@@ -37,7 +37,7 @@
 #define PSK1			"psk1"
 #define SSID2			"ssid2"
 #define PSK2			"psk2"
-#define MQTT_SERVER		"accrete.org"
+#define MQTT_SERVER		"linkgo.io"
 
 /*
  * Features
@@ -47,7 +47,7 @@
 //#define NEURITE_ENABLE_MDNS
 #define NEURITE_ENABLE_DNSPORTAL
 #define NEURITE_ENABLE_USER
-#define NEURITE_BUILD_DEV
+//#define NEURITE_BUILD_DEV
 
 /*
  * Log
