@@ -914,7 +914,7 @@ static void handleSave(void)
 	message += server->args();
 	message += "\n\n";
 	for (int i = 0; i<server->args(); i++) {
-		message += " " + server->argName(i) + ": " + server->arg(i) + "\n";
+		message += server->argName(i) + ": " + server->arg(i) + "\n";
 		if (server->argName(i).equals("ssid")) {
 			if (server->arg(i).length() > NEURITE_SSID_LEN) {
 				log_warn("ssid too long %d (>%d)\n\r",
@@ -935,7 +935,7 @@ static void handleSave(void)
 			log_warn("%s not handled\n\r", server->arg(i).c_str());
 		}
 	}
-	message += "Good config, reboot in 3 seconds.\n";
+	message += "\nGood config, reboot in 3 seconds.\n";
 	nd->cfg.save(NEURITE_CFG_PATH);
 	server->send(200, "text/plain", message);
 	message = String();

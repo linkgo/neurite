@@ -8474,7 +8474,7 @@ global style for neurite AP web
 <body>
   <div class="header">
     <div class="neurite-home-menu">
-      <a class="neurite-menu-heading" href="http://linkgo.io">linkgo.<b style="color:#A42027;">i</b><b style="color:#009F32;">o</b></a>
+      <a class="neurite-menu-heading" href="http://linkgo.io">linkgo.io</a>
       <ul class="neurite-menu-list">
         <li>
           <a href="mailto:hi@linkgo.io?Subject=Greetings!" class="pure-menu-link">Contact</a>
@@ -13066,7 +13066,6 @@ $.fn.transition.settings = {
   	  obj.forEach(function(elem, index, group) {
   	  	console.log(elem.ssid);
                 $("#ssid_menu").append('<div class="item">'+elem.ssid+'</div>');
-
 		// explicitly specify data-value, or it will default to all lowercase
 		// reference: https://github.com/Semantic-Org/Semantic-UI-Docs/pull/145
 		$(".item:last").attr("data-value", elem.ssid);
@@ -13095,25 +13094,24 @@ $.fn.transition.settings = {
     }
     console.log("here save wifi:", ssid, pwd);
 
-    var xmlHttp = new XMLHttpRequest();
-
-    xmlHttp.onreadystatechange = function() { 
-        if (xmlHttp.readyState == 4 && xmlHttp.status == 200) {
-          console.log(xmlHttp.responseText);
-          console.log("post done");
-        }
-    }
-
-    //use specific ip for debug, use location hostname for release
     var host = location.hostname;
-    //var host = '192.168.1.16';
     var url = 'http://' + host + '/save';
 
-    xmlHttp.open("POST", url, true); // true for asynchronous 
-    xmlHttp.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
-    var param = "ssid="+ssid+"&"+"password="+pwd;
-    console.log(param);
-    xmlHttp.send(param);
+    $.extend({
+      StandardPost:function(url, args) {
+        var form = $("<form method='post'></form>");
+        var input;
+        form.attr({"action": url});
+        $.each(args,function(key, value){
+          input = $("<input type='hidden'>");
+          input.attr({"name": key});
+          input.val(value);
+          form.append(input);
+        });
+        form.submit();
+      }
+    });
+    $.StandardPost(url, {"ssid":ssid,"password":pwd});
   }
 
   $(window).load(function() {
