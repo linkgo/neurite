@@ -64,6 +64,7 @@ static Ticker ticker_led;
 static Ticker ticker_cmd;
 static Ticker ticker_mon;
 static Ticker ticker_but;
+static Ticker ticker_reboot;
 static ESP8266WebServer *server;
 static File fsUploadFile;
 #ifdef NEURITE_ENABLE_WIFIMULTI
@@ -934,12 +935,12 @@ static void handleSave(void)
 			log_warn("%s not handled\n\r", server->arg(i).c_str());
 		}
 	}
-	message += "Jolly good config!\n";
+	message += "Good config, reboot in 3 seconds.\n";
 	nd->cfg.save(NEURITE_CFG_PATH);
 	server->send(200, "text/plain", message);
 	message = String();
 	log_dbg("out ok\n\r");
-	reboot(nd);
+	ticker_reboot.once_ms(3000, (void (*)(void))reboot);
 	return;
 err_handle_save:
 	message += "Bad request\n";

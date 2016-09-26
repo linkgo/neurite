@@ -13066,6 +13066,10 @@ $.fn.transition.settings = {
   	  obj.forEach(function(elem, index, group) {
   	  	console.log(elem.ssid);
                 $("#ssid_menu").append('<div class="item">'+elem.ssid+'</div>');
+
+		// explicitly specify data-value, or it will default to all lowercase
+		// reference: https://github.com/Semantic-Org/Semantic-UI-Docs/pull/145
+		$(".item:last").attr("data-value", elem.ssid);
   	  });
           $("#scanload").hide();
           $("#scan").show();
