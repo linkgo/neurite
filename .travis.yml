@@ -17,12 +17,13 @@ cache:
 env:
 - PLATFORMIO_CI_SRC=src
 install:
+- echo '[install]'
 - pip install -U platformio
-- platformio lib install 64 89
+- platformio lib install PubSubClient ArduinoJson
 before_script:
-- mkdir -p ~/.platformio/boards/
-- cp platformio/boards/neurite.json ~/.platformio/boards/
+- echo '[before_script]'
 script:
+- echo '[script]'
 - platformio run
 notifications:
   slack:
