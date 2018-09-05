@@ -150,18 +150,15 @@ void neurite_user_setup(void)
 	// large block of text
 	tft.fillScreen(ST7735_BLACK);
 
-	bmpDraw("/logo.bmp", 39, 0);
+	//bmpDraw("/logo.bmp", 39, 0);
 
 	tft.setCursor(0, 8*7);
 	tft.setTextColor(ST7735_WHITE);
 	tft.print("  Made with love by  ");
 	tft.setCursor(0, 8*8);
-	tft.print("      linkgo.");
-	tft.setTextColor(ST7735_RED);
-	tft.print("i");
-	tft.setTextColor(ST7735_GREEN);
-	tft.print("o");
+	tft.print("      linkgo.io");
 	tft.setCursor(0, 8*10);
+
 	delay(2000);
 }
 
@@ -317,6 +314,21 @@ void neurite_user_mqtt(char *topic, byte *payload, unsigned int length)
 	char topic_from[MQTT_TOPIC_LEN] = {0};
 	nd->cfg.get("topic_from", topic_from, MQTT_TOPIC_LEN);
 	if (strcmp(topic, topic_from) == 0) {
+		int16_t y = tft.getCursorY();
+		if ((y + 8) >= ST7735_TFTHEIGHT_144) {
+			y = 0;
+			tft.fillScreen(ST7735_BLACK);
+		} else {
+			y = y + 8;
+		}
+		tft.setCursor(0, y);
+		tft.setTextColor(ST7735_WHITE);
+		tft.setTextWrap(true);
+		char text[MQTT_MSG_LEN];
+		__bzero(text, sizeof(text));
+		for (int i = 0; i < length; i++)
+			text[i] = payload[i];
+		tft.print((char *)text);
 	}
 }
 
