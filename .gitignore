@@ -1,4 +1,5 @@
 *cscope*
 .pioenvs
+.piolibdeps/
 fs/tmp
 fs/spiffs.1m.bin
