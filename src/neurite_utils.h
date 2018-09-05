@@ -74,31 +74,31 @@
 #define log_dbg(msg, args...) \
 	do { \
 		if (LOG_LEVEL <= LOG_DEBUG) { \
-			APP_PRINTF("[%6u.%03u] D/%s: " msg, __dec, __frac, __func__, ##args); \
+			APP_PRINTF("[%6lu.%03lu] D/%s: " msg, __dec, __frac, __func__, ##args); \
 		} \
 	} while (0)
 #define log_info(msg, args...) \
 	do { \
 		if (LOG_LEVEL <= LOG_INFO) { \
-			APP_PRINTF("[%6u.%03u] I/%s: " msg, __dec, __frac, __func__, ##args); \
+			APP_PRINTF("[%6lu.%03lu] I/%s: " msg, __dec, __frac, __func__, ##args); \
 		} \
 	} while (0)
 #define log_warn(msg, args...) \
 	do { \
 		if (LOG_LEVEL <= LOG_WARN) { \
-			APP_PRINTF("[%6u.%03u] W/%s: " msg, __dec, __frac, __func__, ##args); \
+			APP_PRINTF("[%6lu.%03lu] W/%s: " msg, __dec, __frac, __func__, ##args); \
 		} \
 	} while (0)
 #define log_err(msg, args...) \
 	do { \
 		if (LOG_LEVEL <= LOG_ERROR) { \
-			APP_PRINTF("[%6u.%03u] E/%s: " msg, __dec, __frac, __func__, ##args); \
+			APP_PRINTF("[%6lu.%03lu] E/%s: " msg, __dec, __frac, __func__, ##args); \
 		} \
 	} while (0)
 #define log_fatal(msg, args...) \
 	do { \
 		if (LOG_LEVEL <= LOG_FATAL) { \
-			APP_PRINTF("[%6u.%03u] F/%s: " msg, __dec, __frac, __func__, ##args); \
+			APP_PRINTF("[%6lu.%03lu] F/%s: " msg, __dec, __frac, __func__, ##args); \
 		} \
 	} while (0)
 
