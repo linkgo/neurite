@@ -1135,6 +1135,9 @@ inline void neurite_worker(void)
 			dbg_assert(payload_buf);
 			sprintf(payload_buf, "checkin: %s", nd->uid);
 			mqtt_cli.publish(topic_to, (const char *)payload_buf);
+			__bzero(payload_buf, sizeof(payload_buf));
+			sprintf(payload_buf, "ip: %s", WiFi.localIP().toString().c_str());
+			mqtt_cli.publish(topic_to, (const char *)payload_buf);
 
 			start_ticker_led_breath(nd);
 			start_ticker_mon(nd);
